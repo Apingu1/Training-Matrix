@@ -1,0 +1,22 @@
+. "$PSScriptRoot\common.ps1"
+Assert-Administrator
+Assert-Docker
+Assert-Installed
+
+Write-Host "DANGER: this permanently deletes Training Matrix database volumes and installed application files." -ForegroundColor Red
+Write-Host "The external controlled-document and backup folders are not deleted."
+$first = Read-Host "Type DELETE TRAINING MATRIX DATABASE"
+if ($first -cne "DELETE TRAINING MATRIX DATABASE") { throw "First confirmation did not match; nothing was deleted." }
+$second = Read-Host "Type the server name $env:COMPUTERNAME"
+if ($second -cne $env:COMPUTERNAME) { throw "Server-name confirmation did not match; nothing was deleted." }
+
+Invoke-Compose down -v --remove-orphans
+if (Get-NetFirewallRule -DisplayName "Eaststone Training Matrix HTTPS" -ErrorAction SilentlyContinue) {
+    Remove-NetFirewallRule -DisplayName "Eaststone Training Matrix HTTPS"
+}
+$parent = Split-Path $script:InstallRoot -Parent
+$tombstone = Join-Path $parent "TrainingMatrix_DELETED_$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
+Set-Content -LiteralPath $tombstone -Value "Deleted by $env:USERNAME at $(Get-Date -Format o). External controlled documents and backups were retained." -Encoding UTF8
+Remove-Item -LiteralPath $script:InstallRoot -Recurse -Force
+Write-Host "Training Matrix database volumes and installed files were deleted." -ForegroundColor Red
+Write-Host "External documents and database backup files remain in their separately configured folders."

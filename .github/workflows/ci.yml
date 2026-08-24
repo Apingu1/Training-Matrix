@@ -1,0 +1,100 @@
+name: Training Matrix CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: training_matrix_ci
+          POSTGRES_USER: training_matrix
+          POSTGRES_PASSWORD: ci-database-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U training_matrix -d training_matrix_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: api/requirements-dev.txt
+      - run: pip install -r api/requirements-dev.txt
+      - run: ruff format --check api
+      - run: ruff check api
+      - run: pytest -q api/tests
+      - working-directory: api
+        env:
+          APP_ENV: production
+          DATABASE_URL: postgresql+psycopg://training_matrix:ci-database-password@localhost:5432/training_matrix_ci
+          JWT_SECRET: ci-jwt-secret-with-more-than-thirty-two-characters
+          INITIAL_ADMIN_PASSWORD: CI-Initial-Admin-Password1!
+          DOCUMENT_ROOT: /tmp/controlled-documents
+          BACKUP_ROOT: /tmp/training-backups
+          DOCUMENT_CACHE_ROOT: /tmp/training-cache
+          RUNTIME_ROOT: /tmp/training-runtime
+        run: alembic upgrade head
+      - env:
+          DATABASE_URL: postgresql://training_matrix:ci-database-password@localhost:5432/training_matrix_ci
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg
+
+          with psycopg.connect(os.environ["DATABASE_URL"]) as connection:
+              with connection.cursor() as cursor:
+                  cursor.execute("INSERT INTO audit_events (event_type, success, created_at) VALUES ('CI_APPEND_ONLY', true, now()) RETURNING id")
+                  event_id = cursor.fetchone()[0]
+                  try:
+                      cursor.execute("UPDATE audit_events SET event_type = 'MUTATED' WHERE id = %s", (event_id,))
+                  except psycopg.errors.RaiseException:
+                      connection.rollback()
+                  else:
+                      raise SystemExit("Append-only audit trigger did not reject mutation")
+          PY
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - working-directory: web
+        run: npm ci
+      - working-directory: web
+        run: npm run build
+
+  windows-script-syntax:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell administration scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem windows -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              $errors | ForEach-Object { Write-Error "$($_.Extent.File):$($_.Extent.StartLineNumber) $($_.Message)" }
+            }
+          }
+          if ($failed) { throw "PowerShell syntax validation failed" }
