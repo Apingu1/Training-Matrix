@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { BookOpen, CheckCircle2, Clock3, Search } from "lucide-react";
-import { api, formatDate, statusClass } from "../api";
+import { api, formatDate, statusClass, trainingStatusLabel } from "../api";
 import { EmptyState, ErrorBanner, Modal, PageHeader } from "../components/Common";
 import DocumentViewer from "../components/DocumentViewer";
 import type { DocumentVersion, TrainingAssignment } from "../types";
@@ -38,12 +38,12 @@ export default function MyTrainingPage() {
       <PageHeader eyebrow="PERSONAL CURRICULUM" title="My training" description="Read effective documents and maintain your attributable training history." />
       <ErrorBanner error={error} />
       <div className="toolbar">
-        <div className="segmented">{["OPEN", "OVERDUE", "COMPLETED", "ALL"].map((item) => <button key={item} className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>{item}</button>)}</div>
+        <div className="segmented">{[{ value: "OPEN", label: "To read" }, { value: "OVERDUE", label: "Overdue" }, { value: "COMPLETED", label: "Completed" }, { value: "ALL", label: "All" }].map((item) => <button key={item.value} className={filter === item.value ? "active" : ""} onClick={() => setFilter(item.value)}>{item.label}</button>)}</div>
         <label className="search-box"><Search size={18} /><input placeholder="Search code or title" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
       </div>
       {visible.length ? <div className="training-grid">{visible.map((item) => (
         <article className={`training-card ${item.status === "OVERDUE" ? "overdue" : ""}`} key={item.id}>
-          <div className="training-card-top"><span className="doc-type">{item.document_type}</span><span className={statusClass(item.status)}>{item.status}</span></div>
+          <div className="training-card-top"><span className="doc-type">{item.document_type}</span><span className={statusClass(item.status)}>{trainingStatusLabel(item.status, item.version_status)}</span></div>
           <div><p className="doc-code">{item.document_code} · {item.version_label}</p><h3>{item.document_title}</h3></div>
           <div className="training-meta"><span><Clock3 /> Due {formatDate(item.due_at)}</span>{item.completed_at && <span><CheckCircle2 /> Completed {formatDate(item.completed_at, true)}</span>}</div>
           <button className={`button ${item.stored_status === "ASSIGNED" ? "primary" : "secondary"}`} onClick={() => setSelected(item)}><BookOpen size={17} /> {item.stored_status === "ASSIGNED" ? "Open & acknowledge" : "View record"}</button>
@@ -56,6 +56,5 @@ export default function MyTrainingPage() {
 }
 
 function TrainingRecordModal({ assignment, onClose }: { assignment: TrainingAssignment; onClose: () => void }) {
-  const legacy = assignment.stored_status === "COMPLETED" ? "YY" : "XX";
-  return <Modal title={`Training record · ${assignment.document_code} ${assignment.version_label}`} onClose={onClose}><div className="stack-form"><div className="signature-notice"><CheckCircle2 /><p>This is retained evidence for a superseded or obsolete controlled version.</p></div><dl className="record-list"><div><dt>Historical matrix code</dt><dd>{legacy}</dd></div><div><dt>Outcome</dt><dd>{assignment.stored_status}</dd></div><div><dt>Assigned</dt><dd>{formatDate(assignment.assigned_at, true)}</dd></div><div><dt>Completed</dt><dd>{formatDate(assignment.completed_at, true)}</dd></div><div><dt>Version state</dt><dd>{assignment.version_status.replaceAll("_", " ")}</dd></div>{assignment.acknowledgement && <><div><dt>Signed statement</dt><dd>{assignment.acknowledgement.statement}</dd></div><div><dt>Document fingerprint</dt><dd><code>{assignment.acknowledgement.source_sha256}</code></dd></div></>}</dl><div className="modal-actions"><button className="button primary" onClick={onClose}>Close record</button></div></div></Modal>;
+  return <Modal title={`Training record · ${assignment.document_code} ${assignment.version_label}`} onClose={onClose}><div className="stack-form"><div className="signature-notice"><CheckCircle2 /><p>This is retained evidence for a superseded or obsolete controlled version.</p></div><dl className="record-list"><div><dt>Training status</dt><dd>{trainingStatusLabel(assignment.status, assignment.version_status)}</dd></div><div><dt>Document status</dt><dd>{assignment.version_status.replaceAll("_", " ")}</dd></div><div><dt>Assigned</dt><dd>{formatDate(assignment.assigned_at, true)}</dd></div><div><dt>Completed</dt><dd>{formatDate(assignment.completed_at, true)}</dd></div>{assignment.closure_reason && <div><dt>Closure reason</dt><dd>{assignment.closure_reason}</dd></div>}{assignment.acknowledgement && <><div><dt>Signed statement</dt><dd>{assignment.acknowledgement.statement}</dd></div><div><dt>Document fingerprint</dt><dd><code>{assignment.acknowledgement.source_sha256}</code></dd></div></>}</dl><div className="modal-actions"><button className="button primary" onClick={onClose}>Close record</button></div></div></Modal>;
 }

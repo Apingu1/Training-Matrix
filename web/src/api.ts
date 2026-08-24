@@ -80,3 +80,26 @@ export function formatDate(value?: string | null, includeTime = false): string {
 export function statusClass(status: string): string {
   return `status status-${status.toLowerCase().replaceAll("_", "-")}`;
 }
+
+export function trainingStatusLabel(status: string, versionStatus?: string): string {
+  switch (status) {
+    case "COMPLETED":
+      return "Read and acknowledged";
+    case "ASSIGNED":
+      return "Reading required";
+    case "OVERDUE":
+      return "Reading overdue";
+    case "REFERENCE":
+      return "Reference only";
+    case "NOT_ASSIGNED":
+      return "No assignment";
+    case "WAIVED":
+      return "Waived";
+    case "CANCELLED":
+      if (versionStatus === "SUPERSEDED") return "Closed — superseded before completion";
+      if (versionStatus === "OBSOLETE") return "Closed — obsolete before completion";
+      return "Closed without acknowledgement";
+    default:
+      return status.toLowerCase().replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
+  }
+}

@@ -14,7 +14,7 @@ The first release is intentionally a clean build. It does **not** import the cur
 - Electronic approval/release signatures with password re-authentication and exact file hash.
 - Role-based curricula, effective-dated operator roles, automatic assignments and retraining on revision.
 - Operator read-and-understood acknowledgement after verified document viewing and password re-authentication.
-- Live role matrix and user history, with spreadsheet-style `x/y/xx/yy` meanings available as a familiar display legend.
+- Live role matrix and user history with plain-language statuses such as Reading required, Read and acknowledged, Reading overdue and Closed before completion.
 - Controlled-copy issue, return and destruction register.
 - Dynamic security roles and permissions, idle sessions, lockout, forced first-login password change and server-side enforcement.
 - Append-only audit, acknowledgement and document-signature records in PostgreSQL.
@@ -22,11 +22,17 @@ The first release is intentionally a clean build. It does **not** import the cur
 - Automatic/manual PostgreSQL backups, hash manifests, verification and staged restore with a pre-restore safety backup.
 - Docker-based server deployment, Windows administration scripts and CI checks.
 
-The legacy `t` trainer marker is deliberately absent. Trainer capability, if needed later, should be a permissioned workflow rather than a cell code.
-
 ## Quick start for development
 
-Requirements: Python 3.12+, Node 22+ and LibreOffice for local DOCX rendition tests.
+The simplest Codespaces/Linux development start is:
+
+```bash
+./run_stack.sh
+```
+
+On first use, the script creates a private development `.env`, local document/backup folders and a development TLS certificate. It then builds the Docker stack, migrates/seeds the database, waits for health and prints the preview URL and one-time admin password. Re-running it preserves the named database volumes and existing data.
+
+For non-container test execution, requirements are Python 3.12+, Node 22+ and LibreOffice for local DOCX rendition tests.
 
 ```bash
 python -m venv .venv

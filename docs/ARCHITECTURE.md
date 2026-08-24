@@ -46,17 +46,19 @@ An authorised controller can refresh the file fingerprint only while a version i
 
 `REFERENCE_ONLY` and `CONTROLLED_COPY` role mappings appear in the curriculum but do not create read-and-understand assignments. Physical controlled copies are tracked separately by copy number, department and location.
 
-## Legacy matrix display mapping
+## Training status presentation
 
-| Legacy code | Meaning | System representation |
-|---|---|---|
-| `x` | Active version, not read | Current assignment is assigned/overdue |
-| `y` | Active version, read | Current assignment is completed |
-| `xx` | Superseded version, not read | Historical incomplete assignment closed on supersession |
-| `yy` | Superseded version, read | Historical completed acknowledgement for superseded version |
-| `t` | Trainer | Removed; not a training state |
+| User-facing label | System representation |
+|---|---|
+| Reading required | Current assignment is assigned and within its due date |
+| Read and acknowledged | Current or historical assignment has an attributable acknowledgement |
+| Reading overdue | Current assignment remains incomplete after its due date |
+| Reference only | The role mapping is informational and creates no acknowledgement assignment |
+| No assignment | No assignment exists for the current effective version and operator |
+| Closed — superseded before completion | An incomplete historical assignment was closed when its version was superseded |
+| Waived | An authorised person waived the assignment with a recorded reason |
 
-The live matrix uses clear labels and retains the codes only as a transition aid.
+The interface uses these plain-language labels throughout the live matrix and training history. Historical assignment state and acknowledgement evidence remain stored independently of display wording.
 
 ## Core entities
 

@@ -52,7 +52,7 @@ Eaststone Quality should perform a documented risk assessment and determine the 
 - Tamper with a registered source and verify blocked transition/view/acknowledgement plus audit.
 - Configure role curriculum and current/future-dated users; verify de-duplication.
 - View and sign as operator; verify exact version/hash/history and matrix status.
-- Verify `x/y/xx/yy` historical mapping and absence of `t` logic.
+- Verify plain-language current and historical training labels against the underlying assignment, document-version and acknowledgement records.
 - Issue/return/destroy controlled copies.
 - Search/export audit; attempt DB update/delete of append-only records.
 - Automatic/manual backup, checksum/catalogue verification and staged restore.

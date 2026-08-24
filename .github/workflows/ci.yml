@@ -36,6 +36,7 @@ jobs:
       - run: ruff format --check api
       - run: ruff check api
       - run: pytest -q api/tests
+      - run: bash -n run_stack.sh scripts/*.sh
       - working-directory: api
         env:
           APP_ENV: production
