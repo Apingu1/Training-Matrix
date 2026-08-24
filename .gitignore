@@ -18,5 +18,6 @@ runtime/*
 !runtime/.gitkeep
 api/document-cache/
 certs/
+release/
 .DS_Store
 Thumbs.db

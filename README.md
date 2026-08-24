@@ -44,6 +44,18 @@ cd web && npm run build
 
 For a server installation, follow [Installation](docs/INSTALLATION.md). Do not use `.env.example` unchanged: production secrets and host paths must be generated/configured first.
 
+## Commercial package
+
+Every successful push and pull-request workflow builds a validated, single-extract artifact named **Eaststone-Training-Matrix-Commercial-Package**. The artifact contains the Windows server/client launchers, production application source, installation documentation, build identity and a SHA-256 file manifest. Development tests, credentials, TLS private keys, controlled documents, database files and local runtime data are excluded.
+
+Open the relevant GitHub Actions run and download the artifact from its **Artifacts** section. GitHub supplies it as a ZIP; extract it once and begin with `00 - START HERE - INSTALLATION GUIDE.txt`.
+
+To create the same commercial package locally after running the full test suite:
+
+```bash
+./scripts/package_release.sh
+```
+
 ## Documentation
 
 - [User requirements and acceptance criteria](docs/USER_REQUIREMENTS.md)

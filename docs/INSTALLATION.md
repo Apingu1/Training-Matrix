@@ -17,8 +17,8 @@ Production qualification should pin an approved release commit/image set and rec
 
 ## Windows installation
 
-1. Download and verify an approved release ZIP/SHA-256, then extract it locally on the server.
-2. Right-click `INSTALL_WINDOWS.bat` and choose **Run as administrator**.
+1. Download the successful workflow artifact named `Eaststone-Training-Matrix-Commercial-Package`, record the workflow identity/digest, then extract it once on the server.
+2. Read `00 - START HERE - INSTALLATION GUIDE.txt`, then right-click `01 - INSTALL SERVER.bat` and choose **Run as administrator**.
 3. Select the existing controlled-document folder and a separate backup folder.
 4. Enter the HTTPS port or accept `8090`.
 5. Wait for database migration, image build and health checks.
