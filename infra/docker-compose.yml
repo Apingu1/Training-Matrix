@@ -1,0 +1,88 @@
+name: eaststone-training-matrix
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-Europe/London}
+    volumes:
+      - training-matrix-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [training-matrix-internal]
+
+  db-init:
+    build: ../api
+    env_file: ../.env
+    command: ["sh", "-c", "alembic upgrade head && python -m app.seed"]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - training-matrix-runtime:/runtime
+    networks: [training-matrix-internal]
+    restart: "no"
+
+  api:
+    build: ../api
+    restart: unless-stopped
+    env_file: ../.env
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    volumes:
+      - "${DOCUMENTS_HOST_PATH}:/controlled-documents:ro"
+      - "${BACKUP_HOST_PATH}:/backups"
+      - training-matrix-document-cache:/document-cache
+      - training-matrix-runtime:/runtime
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks: [training-matrix-internal]
+
+  backup-scheduler:
+    build: ../api
+    restart: unless-stopped
+    env_file: ../.env
+    command: ["python", "-m", "app.backup_scheduler"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    volumes:
+      - "${BACKUP_HOST_PATH}:/backups"
+      - training-matrix-runtime:/runtime
+    networks: [training-matrix-internal]
+
+  web:
+    build: ../web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8090}:8443"
+      - "127.0.0.1:${APP_HEALTH_PORT:-18090}:8080"
+    volumes:
+      - "${TLS_CERT_HOST_PATH}:/etc/nginx/tls:ro"
+    networks: [training-matrix-internal]
+
+networks:
+  training-matrix-internal:
+    driver: bridge
+
+volumes:
+  training-matrix-db-data:
+    name: training-matrix-db-data
+  training-matrix-document-cache:
+    name: training-matrix-document-cache
+  training-matrix-runtime:
+    name: training-matrix-runtime

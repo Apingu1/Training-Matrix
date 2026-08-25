@@ -1,0 +1,11 @@
+{
+  "name": "Eaststone Training Matrix",
+  "short_name": "Training Matrix",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eef4f1",
+  "theme_color": "#143d36",
+  "icons": [
+    { "src": "/eaststone-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
