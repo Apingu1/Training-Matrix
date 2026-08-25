@@ -34,7 +34,11 @@ jobs:
           cache: pip
           cache-dependency-path: api/requirements-dev.txt
       - run: pip install -r api/requirements-dev.txt
-      - run: ruff format --check api
+      - name: Show required Ruff formatting during branch validation
+        run: |
+          ruff format api
+          git diff -- api
+          git diff --quiet -- api
       - run: ruff check api
       - run: pytest -q api/tests
       - run: pip-audit -r api/requirements.txt
