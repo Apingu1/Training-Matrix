@@ -170,9 +170,7 @@ def get_current_auth(
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is inactive")
 
-    configured_absolute_expiry = as_utc(auth_session.issued_at) + timedelta(
-        minutes=session_absolute_minutes(db)
-    )
+    configured_absolute_expiry = as_utc(auth_session.issued_at) + timedelta(minutes=session_absolute_minutes(db))
     absolute_expiry = min(as_utc(auth_session.expires_at), configured_absolute_expiry)
     if absolute_expiry <= now:
         auth_session.revoked_at = now
