@@ -14,7 +14,7 @@ from .audit import record_audit
 from .config import settings
 from .database import Base, runtime
 from .models import SourceScanRun, SystemSetting
-from .routers import admin, audit, auth, documents, system, training
+from .routers import admin, audit, auth, compliance, configuration, documents, system, training
 from .routers.documents import activate_due_versions
 from .seed import seed_database
 from .services.source_discovery import run_source_scan
@@ -190,6 +190,8 @@ def health():
 app.include_router(auth.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(training.router, prefix="/api")
+app.include_router(compliance.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
+app.include_router(configuration.router, prefix="/api")
