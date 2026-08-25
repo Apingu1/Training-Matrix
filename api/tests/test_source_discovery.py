@@ -27,6 +27,10 @@ def test_recursive_discovery_baseline_import_and_change_detection(client, helper
     duplicate.write_bytes(approved.read_bytes())
     unsupported = nested / "working-notes.xlsx"
     unsupported.write_bytes(b"not a controlled PDF or DOCX")
+    word_lock = nested / "~$ Sop 010 F01 Internal Audit Checklist.docx"
+    word_lock.write_bytes(b"temporary Microsoft Word owner file")
+    form = nested / "Sop 010 F01 Internal Audit Checklist V01.docx"
+    form.write_bytes(b"valid test form source")
 
     inventory = assert_ok(
         client.post(
@@ -39,11 +43,18 @@ def test_recursive_discovery_baseline_import_and_change_detection(client, helper
     approved_path = approved.relative_to(DOCUMENT_ROOT).as_posix()
     duplicate_path = duplicate.relative_to(DOCUMENT_ROOT).as_posix()
     unsupported_path = unsupported.relative_to(DOCUMENT_ROOT).as_posix()
+    form_path = form.relative_to(DOCUMENT_ROOT).as_posix()
+    word_lock_path = word_lock.relative_to(DOCUMENT_ROOT).as_posix()
     assert by_path[approved_path]["classification"] == "DUPLICATE"
     assert by_path[duplicate_path]["classification"] == "DUPLICATE"
     assert by_path[unsupported_path]["classification"] == "UNSUPPORTED"
     assert by_path[approved_path]["inferred"]["code"] == "ES.SOP.777"
     assert by_path[approved_path]["inferred"]["version_label"] == "V03"
+    assert word_lock_path not in by_path
+    assert by_path[form_path]["inferred"]["code"] == "ES.SOP.010.F01"
+    assert by_path[form_path]["inferred"]["document_type"] == "FORM"
+    assert by_path[form_path]["inferred"]["version_label"] == "V01"
+    assert by_path[form_path]["inferred"]["title"] == "Internal Audit Checklist"
 
     import_item = {
         "relative_path": approved_path,
