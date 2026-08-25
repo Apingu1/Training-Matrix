@@ -34,11 +34,7 @@ jobs:
           cache: pip
           cache-dependency-path: api/requirements-dev.txt
       - run: pip install -r api/requirements-dev.txt
-      - name: Show final required Ruff formatting
-        run: |
-          ruff format api
-          git diff -- api/app/routers/compliance.py
-          git diff --quiet -- api
+      - run: ruff format --check api
       - run: ruff check api
       - run: pytest -q api/tests
       - run: pip-audit -r api/requirements.txt
