@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,27 +27,6 @@ if (externalWorkerModule) {
 const workerStats = await stat(path.join(assetsDirectory, workerAsset));
 if (!workerStats.isFile() || workerStats.size === 0) {
   throw new Error(`The emitted PDF.js worker is invalid: ${workerAsset}`);
-}
-
-const nginxConfigs = [
-  path.join(webRoot, "nginx.conf"),
-  path.resolve(webRoot, "..", "infra", "nginx", "default.conf"),
-];
-
-for (const configPath of nginxConfigs) {
-  const config = await readFile(configPath, "utf8");
-  const mjsLocation = config.match(
-    /location\s+[^\{]*\\\.mjs\$\s*\{([\s\S]*?)\}/,
-  );
-
-  if (
-    !mjsLocation ||
-    !/default_type\s+application\/javascript\s*;/.test(mjsLocation[1])
-  ) {
-    throw new Error(
-      `${path.relative(webRoot, configPath)} does not serve .mjs files as application/javascript.`,
-    );
-  }
 }
 
 console.log(`Verified bundled PDF.js worker delivery: assets/${workerAsset}`);

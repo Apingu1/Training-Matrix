@@ -84,6 +84,8 @@ jobs:
         run: npm audit --omit=dev
       - working-directory: web
         run: npm run build
+      - name: Build production web image from its isolated Docker context
+        run: docker build --tag eaststone-training-matrix-web-ci web
 
   windows-script-syntax:
     runs-on: windows-latest
