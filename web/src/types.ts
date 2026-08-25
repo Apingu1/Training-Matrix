@@ -17,6 +17,8 @@ export type Me = {
   job_roles: JobRole[];
   must_change_password: boolean;
   session_idle_minutes: number;
+  session_absolute_minutes: number;
+  session_expires_at: string;
 };
 
 export type DocumentVersion = {
@@ -108,6 +110,25 @@ export type Requirement = {
   is_active: boolean;
   reason: string;
   created_at: string;
+};
+
+export type ComplianceUser = {
+  user_id: number;
+  username: string;
+  display_name: string;
+  required: number;
+  completed: number;
+  open: number;
+  overdue: number;
+  compliance_percent: number;
+};
+
+export type ComplianceOverview = {
+  threshold_percent: number;
+  operator_count: number;
+  below_threshold_count: number;
+  average_compliance_percent: number;
+  users: ComplianceUser[];
 };
 
 export type ApiError = Error & { status?: number };
