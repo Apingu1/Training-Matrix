@@ -173,6 +173,7 @@ def test_complete_document_release_and_training_flow(client, helpers):
     change_password(client, qa_token, QA_INITIAL, QA_PASSWORD)
     qa_token = login(client, "qa.approver", QA_PASSWORD)
     qa_headers = headers(qa_token)
+    assert_ok(client.get("/api/admin/users", headers=qa_headers))
     assert_ok(
         client.post(
             f"/api/document-versions/{version['id']}/transition",
@@ -227,6 +228,34 @@ def test_complete_document_release_and_training_flow(client, helpers):
     operator_headers = headers(operator_token)
     assignments = assert_ok(client.get("/api/training/my-assignments", headers=operator_headers))
     assert len(assignments) == 1
+    assert assignments[0]["status"] == "ASSIGNED"
+
+    disabled_requirement = assert_ok(
+        client.patch(
+            f"/api/training/requirements/{requirement['id']}",
+            headers=admin_headers,
+            json={
+                "is_active": False,
+                "reason": "Validate curriculum removal and reinstatement behaviour",
+            },
+        )
+    )
+    assert disabled_requirement["assignments_closed"] == 1
+    cancelled = assert_ok(client.get("/api/training/my-assignments", headers=operator_headers))
+    assert cancelled[0]["status"] == "CANCELLED"
+
+    enabled_requirement = assert_ok(
+        client.patch(
+            f"/api/training/requirements/{requirement['id']}",
+            headers=admin_headers,
+            json={
+                "is_active": True,
+                "reason": "Validate cancelled assignments reopen when the curriculum returns",
+            },
+        )
+    )
+    assert enabled_requirement["assignments_created"] == 1
+    assignments = assert_ok(client.get("/api/training/my-assignments", headers=operator_headers))
     assert assignments[0]["status"] == "ASSIGNED"
 
     premature_acknowledgement = client.post(

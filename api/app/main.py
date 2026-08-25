@@ -3,18 +3,21 @@ from __future__ import annotations
 import asyncio
 import uuid
 from contextlib import asynccontextmanager, suppress
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 
 from .audit import record_audit
 from .config import settings
 from .database import Base, runtime
-from .models import SystemSetting
+from .models import SourceScanRun, SystemSetting
 from .routers import admin, audit, auth, documents, system, training
 from .routers.documents import activate_due_versions
 from .seed import seed_database
+from .services.source_discovery import run_source_scan
 from .services.training import reconcile_active_role_assignments, reconcile_assignment_sources
 
 
@@ -44,6 +47,59 @@ async def document_activation_worker() -> None:
             continue
 
 
+def automatic_source_scan_if_due() -> None:
+    with runtime.session() as db:
+        setting = db.get(SystemSetting, "source_scan_interval_minutes")
+        try:
+            interval = max(5, min(1440, int(setting.value if setting else "60")))
+        except ValueError:
+            interval = 60
+        latest = db.scalar(select(SourceScanRun).order_by(SourceScanRun.started_at.desc()).limit(1))
+        now = datetime.now(timezone.utc)
+        if latest:
+            started = (
+                latest.started_at.replace(tzinfo=timezone.utc)
+                if latest.started_at.tzinfo is None
+                else latest.started_at
+            )
+            if started + timedelta(minutes=interval) > now:
+                return
+        try:
+            scan = run_source_scan(db, trigger="AUTOMATIC", requested_by=None)
+        except Exception as exc:
+            record_audit(
+                db,
+                event_type="CONTROLLED_SOURCE_SCAN_FAILED",
+                actor_username="SYSTEM",
+                entity_type="SOURCE_SCAN",
+                success=False,
+                reason="Scheduled recursive controlled-source discovery",
+                metadata={"error": str(exc)},
+            )
+            db.commit()
+            return
+        record_audit(
+            db,
+            event_type="CONTROLLED_SOURCE_SCAN_COMPLETED",
+            actor_username="SYSTEM",
+            entity_type="SOURCE_SCAN",
+            entity_id=scan.id,
+            reason="Scheduled recursive controlled-source discovery",
+            after={"status": scan.status, "counts": scan.counts_json},
+        )
+        db.commit()
+
+
+async def source_scan_worker() -> None:
+    await asyncio.sleep(60)
+    while True:
+        try:
+            await asyncio.to_thread(automatic_source_scan_if_due)
+        except Exception:
+            pass
+        await asyncio.sleep(60)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     if settings.app_env.lower() != "production":
@@ -51,10 +107,14 @@ async def lifespan(_: FastAPI):
     with runtime.session() as db:
         seed_database(db)
     worker = asyncio.create_task(document_activation_worker())
+    scan_worker = asyncio.create_task(source_scan_worker())
     yield
     worker.cancel()
+    scan_worker.cancel()
     with suppress(asyncio.CancelledError):
         await worker
+    with suppress(asyncio.CancelledError):
+        await scan_worker
 
 
 app = FastAPI(

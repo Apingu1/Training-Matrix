@@ -19,7 +19,7 @@ Production qualification should pin an approved release commit/image set and rec
 
 1. Download the successful workflow artifact named `Eaststone-Training-Matrix-Commercial-Package`, record the workflow identity/digest, then extract it once on the server.
 2. Read `00 - START HERE - INSTALLATION GUIDE.txt`, then right-click `01 - INSTALL SERVER.bat` and choose **Run as administrator**.
-3. Select the existing controlled-document folder and a separate backup folder.
+3. Enter or select the existing controlled-document **root** folder and a separate backup folder. The root may contain hundreds of nested folders; every PDF/DOCX beneath it is discovered recursively.
 4. Enter the HTTPS port or accept `8090`.
 5. Wait for database migration, image build and health checks.
 6. Retain `C:\ProgramData\Eaststone\TrainingMatrix\INSTALLATION_REPORT.txt` as IQ evidence.
@@ -27,7 +27,38 @@ Production qualification should pin an approved release commit/image set and rec
 8. Copy `tls\server.crt` through an authenticated administrative channel to each authorised workstation. Place it beside `CLIENT_SETUP_WINDOWS.bat`, then run the client script as administrator with the exact server name. Verify the displayed fingerprint against the installation report.
 9. Complete the qualification and release checks in [Security and validation](SECURITY_AND_VALIDATION.md).
 
+### Mapped drives and UNC paths
+
+Windows often hides drive mappings such as `N:` from a program launched with **Run as administrator**. The installer and folder-configuration tool therefore accept a typed path before opening the browser:
+
+- paste `N:\Approved Documents` if that mapping is visible to the elevated account; the installer attempts to resolve it to its UNC target;
+- preferably paste the permanent UNC path, for example `\\fileserver\quality\Approved Documents`;
+- select the top-level Approved Documents folder, not each SOP subfolder.
+
+Before creating or changing the installation, the tool starts a disposable Docker validation container and proves that Docker can read the selected root recursively. It reports the number of PDF/DOCX files found without copying them. It separately proves that the backup folder is writable. If either test fails, no folder change is committed.
+
+### First installation and safe resume
+
+The first build can take several minutes. Compose runs detached and the installer prints a status update every 15 seconds while waiting, so a stream of container logs is not the installation itself. Detailed output is retained in `INSTALLATION_LOG.txt`.
+
+If Docker Hub DNS/proxy access interrupts the first image download, the installer retries three times and preserves the generated secrets, paths and partial database. Correct Docker Desktop connectivity (a manual `docker pull alpine/openssl:latest` is acceptable), rerun the same installer and enter exactly `RESUME INSTALLATION`. Do not delete `.env` merely to retry.
+
+The installer applies the Windows ACL needed for the Linux nginx container to read `server.key`. `START_WINDOWS.bat` and `UPDATE_WINDOWS.bat` reapply that ACL before starting, which also repairs an installation affected by the earlier nginx `Permission denied` restart loop.
+
 Installed application files live under `C:\ProgramData\Eaststone\TrainingMatrix`. PostgreSQL and runtime data use named Docker volumes; backups and controlled documents stay in the selected host folders.
+
+## First controlled-source baseline
+
+Folder configuration makes documents available read-only; it intentionally does not create master-list records automatically.
+
+1. Sign in with a role that has both document management and approval permissions.
+2. Open **Source discovery** and choose **Scan source now**.
+3. Review the Registered, Unregistered, Duplicate, Changed, Missing, Unsupported and Scan error views.
+4. Correct the detected document number, version, title, type, owner department and dates.
+5. Choose **Select likely current versions**. The helper selects the highest inferred version per document number and leaves older or ambiguous files for manual review.
+6. Review the exact list, enter the controlled reason and your password, then enter the displayed confirmation phrase.
+
+The API re-checks that every selected path and hash still matches the latest inventory, then hashes each file again before registration. Each released baseline version receives an electronic signature and individual audit event; the batch receives a final count and SHA-256 digest. Subsequent scheduled scans identify additions, external changes and missing files. The scan interval is configurable in **System** (5–1440 minutes; default 60).
 
 ## Existing Eaststone certificate
 
@@ -36,7 +67,7 @@ To replace the generated certificate, place PEM files at:
 - `C:\ProgramData\Eaststone\TrainingMatrix\tls\server.crt`
 - `C:\ProgramData\Eaststone\TrainingMatrix\tls\server.key`
 
-Restrict the private key to Administrators/SYSTEM, include the server DNS name in the certificate SAN, then run `START_WINDOWS.bat`. Certificate replacement and expiry monitoring are controlled server-administration activities.
+Include the server DNS name in the certificate SAN, then run `START_WINDOWS.bat`. The start tool restricts full control to Administrators/SYSTEM and grants the local built-in Users group read-only access required by Docker Desktop's Linux bind mount. Interactive logon to the server must therefore be restricted to authorised administrators. Certificate replacement and expiry monitoring are controlled server-administration activities.
 
 ## Routine server tools
 
@@ -79,7 +110,9 @@ Protect `.env` and the TLS private key with operating-system permissions. The ex
 ## Shared-folder rules
 
 - Configure the top-level controlled-document root, not an individual SOP folder.
+- Discovery is recursive; documents may remain inside per-SOP subfolders.
 - Supported sources are `.pdf` and `.docx`.
+- Other file types are inventoried as **Unsupported** for review and are never registered by the baseline tool.
 - Keep file paths stable after a version is registered.
 - Controllers may update a draft in the share and use **Refresh draft file** before submission.
 - Never replace an in-review, approved, released or superseded file in place. Register a new revision instead.

@@ -10,7 +10,7 @@ if ($first -cne "DELETE TRAINING MATRIX DATABASE") { throw "First confirmation d
 $second = Read-Host "Type the server name $env:COMPUTERNAME"
 if ($second -cne $env:COMPUTERNAME) { throw "Server-name confirmation did not match; nothing was deleted." }
 
-Invoke-Compose down -v --remove-orphans
+Invoke-Compose -ComposeArguments @("down", "--volumes", "--remove-orphans", "--rmi", "local")
 if (Get-NetFirewallRule -DisplayName "Eaststone Training Matrix HTTPS" -ErrorAction SilentlyContinue) {
     Remove-NetFirewallRule -DisplayName "Eaststone Training Matrix HTTPS"
 }

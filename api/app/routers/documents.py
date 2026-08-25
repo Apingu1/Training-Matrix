@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import uuid
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -15,19 +17,23 @@ from ..models import (
     DocumentFamily,
     DocumentVersion,
     RoleDocumentRequirement,
+    SourceInventoryFile,
     VersionSignature,
 )
 from ..schemas import (
+    BaselineImportRequest,
     ControlledCopyClose,
     ControlledCopyCreate,
     DocumentCreate,
     DocumentTransition,
     DocumentUpdate,
     DocumentVersionCreate,
+    SourceScanRequest,
 )
 from ..security import (
     AuthContext,
     as_utc,
+    client_ip,
     require_any_permission,
     require_permission,
     verify_password,
@@ -39,6 +45,7 @@ from ..services.file_source import (
     resolve_source,
     source_status,
 )
+from ..services.source_discovery import inventory_snapshot, run_source_scan
 from ..services.training import (
     assign_released_version,
     cancel_incomplete_for_superseded_version,
@@ -147,7 +154,7 @@ def sign_version(
             meaning=meaning,
             statement=statement,
             source_sha256=version.source_sha256,
-            ip_address=request.client.host if request.client else None,
+            ip_address=client_ip(request),
             user_agent=request.headers.get("user-agent", "")[:500],
         )
     )
@@ -254,6 +261,247 @@ def browse_document_source(
     _: AuthContext = Depends(require_permission("documents.manage")),
 ):
     return browse_source(path)
+
+
+@router.get("/documents/source/inventory")
+def get_source_inventory(
+    _: AuthContext = Depends(require_permission("documents.manage")),
+    db: Session = Depends(get_db),
+):
+    return inventory_snapshot(db)
+
+
+@router.post("/documents/source/scan")
+def scan_document_source(
+    payload: SourceScanRequest,
+    request: Request,
+    auth: AuthContext = Depends(require_permission("documents.manage")),
+    db: Session = Depends(get_db),
+):
+    try:
+        scan = run_source_scan(db, trigger="MANUAL", requested_by=auth.user.id)
+    except Exception as exc:
+        record_audit(
+            db,
+            event_type="CONTROLLED_SOURCE_SCAN_FAILED",
+            request=request,
+            actor=auth,
+            entity_type="SOURCE_SCAN",
+            success=False,
+            reason=payload.reason,
+            metadata={"error": str(exc)},
+        )
+        db.commit()
+        status_code = 409 if isinstance(exc, RuntimeError) and "already running" in str(exc).lower() else 503
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    record_audit(
+        db,
+        event_type="CONTROLLED_SOURCE_SCAN_COMPLETED",
+        request=request,
+        actor=auth,
+        entity_type="SOURCE_SCAN",
+        entity_id=scan.id,
+        reason=payload.reason,
+        after={"status": scan.status, "counts": scan.counts_json},
+    )
+    db.commit()
+    return inventory_snapshot(db)
+
+
+@router.post("/documents/source/baseline-import", status_code=201)
+def import_approved_baseline(
+    payload: BaselineImportRequest,
+    request: Request,
+    auth: AuthContext = Depends(require_permission("documents.approve")),
+    db: Session = Depends(get_db),
+):
+    if "documents.manage" not in auth.permissions:
+        raise HTTPException(status_code=403, detail="Baseline import also requires document-management permission")
+    if payload.confirmation != "IMPORT APPROVED DOCUMENT BASELINE":
+        raise HTTPException(status_code=400, detail="Enter exactly: IMPORT APPROVED DOCUMENT BASELINE")
+    if not verify_password(payload.password, auth.user.password_hash):
+        raise HTTPException(status_code=401, detail="Password re-authentication failed")
+
+    input_paths: set[str] = set()
+    input_codes: set[str] = set()
+    input_hashes: set[str] = set()
+    prepared: list[tuple] = []
+    for item in payload.items:
+        code = item.code.strip().upper()
+        version_label = item.version_label.strip().upper()
+        document_type = item.document_type.strip().upper().replace(" ", "_")
+        if document_type not in DOCUMENT_TYPES:
+            raise HTTPException(status_code=400, detail=f"Unsupported document type for {item.relative_path}")
+        if item.relative_path in input_paths:
+            raise HTTPException(status_code=409, detail=f"Source path selected more than once: {item.relative_path}")
+        if code in input_codes:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Select only one approved current version for document {code}",
+            )
+        expected_hash = item.expected_sha256.lower()
+        inventoried = db.scalar(
+            select(SourceInventoryFile).where(SourceInventoryFile.relative_path == item.relative_path)
+        )
+        if (
+            inventoried is None
+            or not inventoried.is_supported
+            or inventoried.missing_since is not None
+            or inventoried.scan_error
+            or inventoried.source_sha256 != expected_hash
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=f"{item.relative_path} is not an unchanged supported file from the latest source inventory; rescan before importing",
+            )
+        if expected_hash in input_hashes:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Duplicate file content selected for baseline import: {item.relative_path}",
+            )
+        source = inspect_source(item.relative_path)
+        if source.sha256 != expected_hash:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{item.relative_path} changed after the discovery scan; rescan before importing",
+            )
+        if db.scalar(select(DocumentVersion.id).where(DocumentVersion.relative_path == source.relative_path).limit(1)):
+            raise HTTPException(status_code=409, detail=f"Source path is already registered: {source.relative_path}")
+        family = db.scalar(
+            select(DocumentFamily).options(selectinload(DocumentFamily.versions)).where(DocumentFamily.code == code)
+        )
+        if family and family.versions:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{code} already has controlled history; use the normal revision workflow",
+            )
+        input_paths.add(source.relative_path)
+        input_codes.add(code)
+        input_hashes.add(expected_hash)
+        prepared.append((item, source, family, code, version_label, document_type))
+
+    batch_id = str(uuid.uuid4())
+    imported: list[dict] = []
+    assignments_created = 0
+    effective_now = utcnow()
+    batch_digest = hashlib.sha256()
+    try:
+        for item, source, family, code, version_label, document_type in prepared:
+            if family is None:
+                family = DocumentFamily(
+                    code=code,
+                    title=item.title.strip(),
+                    document_type=document_type,
+                    owner_department=item.owner_department.strip(),
+                    description="Initial approved baseline imported from the external controlled-document source.",
+                    review_interval_months=item.review_interval_months,
+                    created_by=auth.user.id,
+                )
+                db.add(family)
+                db.flush()
+            else:
+                family.title = item.title.strip()
+                family.document_type = document_type
+                family.owner_department = item.owner_department.strip()
+                family.review_interval_months = item.review_interval_months
+
+            version = DocumentVersion(
+                family_id=family.id,
+                version_label=version_label,
+                status="RELEASED",
+                relative_path=source.relative_path,
+                source_sha256=source.sha256,
+                source_size=source.size,
+                source_modified_at=source.modified_at,
+                change_summary="Initial approved controlled-document baseline import",
+                training_impact="RETRAIN",
+                issue_date=item.issue_date or source.modified_at.date(),
+                approved_at=effective_now,
+                effective_at=effective_now,
+                review_due_date=item.review_due_date,
+                created_by=auth.user.id,
+                approved_by=auth.user.id,
+                released_by=auth.user.id,
+            )
+            db.add(version)
+            db.flush()
+            db.add(
+                VersionSignature(
+                    document_version_id=version.id,
+                    user_id=auth.user.id,
+                    meaning="BASELINE_IMPORT_RELEASE",
+                    statement=(
+                        "I confirm this file was already approved in Eaststone's external controlled-document "
+                        "system and authorise its initial baseline registration and release."
+                    ),
+                    source_sha256=source.sha256,
+                    ip_address=client_ip(request),
+                    user_agent=request.headers.get("user-agent", "")[:500],
+                )
+            )
+            assignments_created += assign_released_version(db, version, assigned_by=auth.user.id)
+            after = {
+                "family": family_dict(family),
+                "version": version_dict(version, include_path=True),
+                "baseline_import_batch_id": batch_id,
+            }
+            record_audit(
+                db,
+                event_type="DOCUMENT_BASELINE_IMPORTED",
+                request=request,
+                actor=auth,
+                entity_type="DOCUMENT_VERSION",
+                entity_id=version.id,
+                reason=payload.reason,
+                after=after,
+                metadata={
+                    "baseline_import_batch_id": batch_id,
+                    "source_sha256": source.sha256,
+                    "electronic_signature_meaning": "BASELINE_IMPORT_RELEASE",
+                },
+            )
+            imported.append(
+                {
+                    "family_id": family.id,
+                    "version_id": version.id,
+                    "code": family.code,
+                    "version_label": version.version_label,
+                    "relative_path": source.relative_path,
+                    "source_sha256": source.sha256,
+                }
+            )
+            batch_digest.update(
+                f"{family.code}|{version.version_label}|{source.relative_path}|{source.sha256}\n".encode()
+            )
+        record_audit(
+            db,
+            event_type="DOCUMENT_BASELINE_IMPORT_COMPLETED",
+            request=request,
+            actor=auth,
+            entity_type="BASELINE_IMPORT",
+            entity_id=batch_id,
+            reason=payload.reason,
+            after={
+                "documents_imported": len(imported),
+                "assignments_created": assignments_created,
+                "batch_sha256": batch_digest.hexdigest(),
+            },
+            metadata={"version_ids": [item["version_id"] for item in imported]},
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="The baseline conflicts with an existing document code, version or released record",
+        ) from exc
+    return {
+        "batch_id": batch_id,
+        "documents_imported": len(imported),
+        "assignments_created": assignments_created,
+        "batch_sha256": batch_digest.hexdigest(),
+        "items": imported,
+    }
 
 
 @router.get("/documents")

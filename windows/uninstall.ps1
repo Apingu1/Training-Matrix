@@ -5,7 +5,7 @@ Assert-Installed
 
 $confirmation = Read-Host "Type STOP AND UNINSTALL APP to remove containers while retaining all data"
 if ($confirmation -cne "STOP AND UNINSTALL APP") { throw "Confirmation did not match; nothing was removed." }
-Invoke-Compose down
+Invoke-Compose -ComposeArguments @("down")
 if (Get-NetFirewallRule -DisplayName "Eaststone Training Matrix HTTPS" -ErrorAction SilentlyContinue) {
     Remove-NetFirewallRule -DisplayName "Eaststone Training Matrix HTTPS"
 }

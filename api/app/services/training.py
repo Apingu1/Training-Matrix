@@ -62,7 +62,7 @@ def ensure_assignment(
             TrainingAssignment.document_version_id == version.id,
         )
     )
-    created = assignment is None
+    created = assignment is None or (assignment is not None and assignment.status == "CANCELLED")
     if assignment is None:
         assignment = TrainingAssignment(
             user_id=user_id,
@@ -76,6 +76,16 @@ def ensure_assignment(
         )
         db.add(assignment)
         db.flush()
+    elif assignment.status == "CANCELLED":
+        assignment.status = "ASSIGNED"
+        assignment.requirement_type = requirement_type
+        assignment.assigned_at = utcnow()
+        assignment.due_at = utcnow() + timedelta(days=due_days)
+        assignment.closed_at = None
+        assignment.closure_reason = None
+        assignment.assigned_by = assigned_by
+        if requirement is None:
+            assignment.is_individual = True
     elif assignment.status == "ASSIGNED":
         if requirement is None:
             assignment.is_individual = True

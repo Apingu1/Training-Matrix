@@ -123,6 +123,30 @@ class DocumentVersionCreate(BaseModel):
     reason: str = Field(min_length=3, max_length=2000)
 
 
+class SourceScanRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=2000)
+
+
+class BaselineImportItem(BaseModel):
+    relative_path: str = Field(min_length=1, max_length=1000)
+    expected_sha256: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
+    code: str = Field(min_length=2, max_length=100)
+    version_label: str = Field(min_length=1, max_length=60)
+    title: str = Field(min_length=3, max_length=500)
+    document_type: str = Field(min_length=2, max_length=60)
+    owner_department: str = Field(min_length=2, max_length=120)
+    issue_date: date | None = None
+    review_due_date: date | None = None
+    review_interval_months: int = Field(default=24, ge=1, le=120)
+
+
+class BaselineImportRequest(BaseModel):
+    items: list[BaselineImportItem] = Field(min_length=1, max_length=5000)
+    password: str = Field(min_length=1, max_length=500)
+    confirmation: str
+    reason: str = Field(min_length=3, max_length=2000)
+
+
 class DocumentTransition(BaseModel):
     action: Literal[
         "REFRESH_SOURCE",

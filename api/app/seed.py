@@ -186,6 +186,10 @@ DEFAULT_SETTINGS = {
         "I confirm that I have read and understood this document and will comply with its requirements.",
         "Controlled read-and-understood attestation",
     ),
+    "source_scan_interval_minutes": (
+        "60",
+        "Automatic recursive controlled-source discovery interval in minutes",
+    ),
 }
 
 

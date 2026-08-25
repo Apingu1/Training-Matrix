@@ -7,6 +7,8 @@ cd "$PROJECT_ROOT"
 .venv/bin/ruff format --check api
 .venv/bin/ruff check api
 .venv/bin/pytest -q api/tests
-(cd web && npm run build)
+.venv/bin/pip-audit -r api/requirements.txt
+(cd web && npm audit --omit=dev && npm run build)
+bash -n run_stack.sh scripts/*.sh
 
 echo "All Eaststone Training Matrix checks passed."

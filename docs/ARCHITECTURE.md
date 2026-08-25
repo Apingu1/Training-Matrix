@@ -15,6 +15,22 @@ flowchart TD
 
 The shared folder remains authoritative for PDF/DOCX content. The application stores a relative path, size, modified time and SHA-256 fingerprint. The Docker mount is read-only, so creation or amendment of source documents remains in Eaststone's existing controlled shared-folder process.
 
+## Controlled-source discovery and baseline
+
+The source-discovery service walks the configured root recursively without following directory/file links and without copying content. A safety limit of 50,000 files bounds a scan. Supported files are hashed; unchanged size/modified-time entries reuse the prior fingerprint on later scans. Unsupported files are inventoried but cannot be imported.
+
+| Classification | Meaning |
+|---|---|
+| Registered | Relative path and SHA-256 match a controlled version |
+| Unregistered | Supported source has no conflicting registered or discovered identity |
+| Duplicate | Content, inferred document/version, or a registered identity is duplicated |
+| Changed | A registered relative path now has different content |
+| Missing | A previously inventoried path is no longer present |
+| Unsupported | File extension is not PDF/DOCX |
+| Scan error | A supported file could not be inspected safely |
+
+`SourceScanRun` stores trigger, status, counts, warnings and inventory fingerprint; `SourceInventoryFile` stores the persistent per-path observation and inferred metadata. A controller may correct suggestions in the browser. The baseline endpoint requires document-management plus approval permission, password re-authentication and an exact confirmation phrase. It verifies the latest inventory and re-hashes every source before directly creating a `RELEASED` initial version. This direct-release path is deliberately limited to the initial externally approved baseline and records an immutable signature, one audit event per document and a batch digest. Later revisions use the normal independent lifecycle.
+
 ## Document lifecycle
 
 ```mermaid
@@ -65,6 +81,7 @@ The interface uses these plain-language labels throughout the live matrix and tr
 - `SecurityRole`, `Permission`, `RolePermission`, `User`, `AuthSession`
 - `JobRole`, `UserJobRole`
 - `DocumentFamily`, `DocumentVersion`, `VersionSignature`
+- `SourceScanRun`, `SourceInventoryFile`
 - `RoleDocumentRequirement`, `TrainingAssignment`, `AssignmentSource`, `TrainingAcknowledgement`
 - `ControlledCopyIssue`
 - `AuditEvent`, `SystemSetting`, `BackupRun`

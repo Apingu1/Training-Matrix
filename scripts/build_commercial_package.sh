@@ -36,6 +36,7 @@ cp -a "$PROJECT_ROOT/api" "$SYSTEM_ROOT/api"
 cp -a "$PROJECT_ROOT/infra" "$SYSTEM_ROOT/infra"
 cp -a "$PROJECT_ROOT/web" "$SYSTEM_ROOT/web"
 cp -a "$PROJECT_ROOT/windows" "$SYSTEM_ROOT/windows"
+cp "$PROJECT_ROOT/APP_VERSION" "$SYSTEM_ROOT/APP_VERSION"
 
 rm -rf \
   "$SYSTEM_ROOT/api/tests" \
@@ -83,9 +84,16 @@ NEW SERVER INSTALLATION
 1. Extract this GitHub artifact once onto the Windows server.
 2. Confirm Docker with Linux-container support is installed and running.
 3. Right-click "01 - INSTALL SERVER.bat" and select Run as administrator.
-4. Select Eaststone's existing controlled PDF/DOCX folder and a separate database-backup folder.
-5. Record the generated installation report and one-time administrator credentials.
-6. Sign in, change the initial password, and complete the approved validation/UAT protocol.
+4. Paste or select Eaststone's top-level approved-document root (UNC paths are supported) and a separate database-backup folder.
+5. The installer verifies Docker can read every nested PDF/DOCX and can write to the backup folder before it proceeds.
+6. Record the generated installation report and one-time administrator credentials.
+7. Sign in, change the initial password, open Source discovery and run the first recursive scan.
+8. Correct the suggested metadata and complete the signed approved-baseline import before configuring role curricula.
+
+SAFE RETRY
+If an image download or first build fails, correct Docker Desktop DNS/proxy access,
+rerun this installer, and type RESUME INSTALLATION. Existing generated secrets and
+database state are retained. Progress is also written to INSTALLATION_LOG.txt.
 
 CLIENT DEPLOYMENT
 After server installation, securely copy the generated tls\server.crt file into the
@@ -102,6 +110,7 @@ IMPORTANT
 - Application backups do not copy the external controlled-document folder.
 - Read Documentation\INSTALLATION.md and SECURITY_AND_VALIDATION.md before regulated use.
 - The destructive complete-uninstall tool requires two explicit confirmations.
+- Mapping a folder does not automatically register documents; use Source discovery after login.
 EOF
 
 cat > "$PACKAGE_ROOT/CLIENT DEPLOYMENT/README.txt" <<'EOF'

@@ -103,6 +103,9 @@ jobs:
             }
           }
           if ($failed) { throw "PowerShell syntax validation failed" }
+      - name: Verify Windows installer and detached Compose contract
+        shell: pwsh
+        run: ./scripts/windows_install_contract_test.ps1
 
   commercial-package:
     name: Build validated commercial package
@@ -132,12 +135,16 @@ jobs:
             'CLIENT DEPLOYMENT/client_setup.ps1'
             'Documentation/INSTALLATION.md'
             'Documentation/SECURITY_AND_VALIDATION.md'
+            'System/APP_VERSION'
             'System/api/Dockerfile'
             'System/api/app/main.py'
+            'System/api/app/services/source_discovery.py'
             'System/api/alembic.ini'
+            'System/api/alembic/versions/0002_source_inventory.py'
             'System/infra/docker-compose.yml'
             'System/web/Dockerfile'
             'System/web/package-lock.json'
+            'System/web/src/pages/SourceDiscoveryPage.tsx'
             'System/windows/install.ps1'
             'PACKAGE_INFORMATION.txt'
             'PACKAGE_MANIFEST_SHA256.txt'

@@ -170,6 +170,41 @@ class DocumentVersion(Base):
     family: Mapped[DocumentFamily] = relationship(back_populates="versions")
 
 
+class SourceScanRun(Base):
+    __tablename__ = "source_scan_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    trigger: Mapped[str] = mapped_column(String(30), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="RUNNING", index=True)
+    requested_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    counts_json: Mapped[dict | None] = mapped_column(JSON)
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class SourceInventoryFile(Base):
+    __tablename__ = "source_inventory_files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    relative_path: Mapped[str] = mapped_column(String(1000), unique=True, index=True)
+    extension: Mapped[str] = mapped_column(String(40), index=True)
+    is_supported: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    source_size: Mapped[int] = mapped_column(Integer)
+    source_modified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source_sha256: Mapped[str | None] = mapped_column(String(64), index=True)
+    inferred_code: Mapped[str | None] = mapped_column(String(100), index=True)
+    inferred_version: Mapped[str | None] = mapped_column(String(60))
+    inferred_title: Mapped[str | None] = mapped_column(String(500))
+    inferred_document_type: Mapped[str | None] = mapped_column(String(60))
+    inferred_owner_department: Mapped[str | None] = mapped_column(String(120))
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    missing_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    last_scan_id: Mapped[int] = mapped_column(ForeignKey("source_scan_runs.id"), index=True)
+    scan_error: Mapped[str | None] = mapped_column(Text)
+
+
 class VersionSignature(Base):
     __tablename__ = "version_signatures"
 

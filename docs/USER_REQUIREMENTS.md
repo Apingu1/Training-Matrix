@@ -26,6 +26,12 @@ The system shall manage Eaststone's controlled-document master list and role-der
 | URS-016 | Provide automatic/manual backup, verification and safe restore | Dump, SHA manifest, retention, pre-restore backup and staged dataset |
 | URS-017 | Install and operate on an Eaststone server | Docker Compose and Windows administration scripts |
 | URS-018 | Do not import the current spreadsheet in this release | No migration command or seeded operational data is included |
+| URS-019 | Discover files beneath the configured root recursively without copying them | Nested PDF/DOCX integration test and Docker read-only preflight |
+| URS-020 | Distinguish registered, unregistered, duplicate, changed, missing, unsupported and scan-error sources | Persistent inventory classifications and Source discovery filters |
+| URS-021 | Suggest document number/version metadata and allow controlled correction | Filename/folder inference plus editable baseline review |
+| URS-022 | Bulk-register only the reviewed approved current baseline | Highest-version selection helper; permission, password, confirmation, inventory and re-hash checks |
+| URS-023 | Record complete baseline provenance | Per-version electronic signature/audit plus batch count and digest |
+| URS-024 | Detect later additions and external source changes | Configurable automatic scan and manual rescan; changed/missing classifications |
 
 ## Permission roles supplied
 
@@ -40,7 +46,7 @@ Administrators may create additional roles and permission bundles. Built-in role
 
 ## Out of scope for the initial build
 
-- Migration of spreadsheet records or legacy read states.
+- Migration of spreadsheet records or legacy read/training states. The controlled-source baseline imports approved files and metadata only.
 - Authoring/editing PDF or DOCX content in the web application.
 - Replacing the shared-folder backup or access-control process.
 - Qualification sign-off, practical observation or exam scoring beyond read-and-understand acknowledgement.

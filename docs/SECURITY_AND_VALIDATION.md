@@ -11,6 +11,8 @@
 - Session revocation after deactivation, role change, reset and password change.
 - TLS 1.2/1.3 proxy configuration and restrictive browser/API headers.
 - Root-constrained read-only shared-folder access and extension allowlist.
+- Recursive source inventory with symlink exclusion, bounded file count, persistent classification and exact hashes.
+- Signed baseline import requiring combined management/approval authority, password re-authentication, an exact confirmation phrase, latest-inventory match and a final file re-hash.
 - Exact SHA-256 binding through revision lifecycle, signature, view and acknowledgement.
 - Independent document approval and password re-authentication for approval/release/obsolescence.
 - Append-only database triggers for audit events, acknowledgements and signatures.
@@ -25,6 +27,7 @@
 | Shared-folder admin changes a released file | Restrict share writes, monitor/backup it; application hash mismatch fails closed |
 | Self-signed certificate distribution | Verify fingerprint out of band or replace with Eaststone CA certificate |
 | Local server administrator access | Named admin accounts, Windows/Docker audit, least privilege and periodic review |
+| Docker Desktop requires read access to the TLS key bind mount | Full control remains Administrators/SYSTEM; built-in Users receives read only; prohibit unauthorised interactive server logon |
 | Loss of both DB and document share | Separate failure domains, monitored backups and recovery tests |
 | Incorrect curriculum configuration | QA-approved role/document review and sampled matrix verification |
 | User attests without comprehension | Training SOP, manager oversight and practical qualification where risk requires it |
@@ -41,6 +44,7 @@ Eaststone Quality should perform a documented risk assessment and determine the 
 - Confirm server time/timezone and synchronisation.
 - Confirm TLS name, chain/fingerprint, allowed network path and firewall rule.
 - Confirm migration head, container health and installation report.
+- Confirm UNC/mapped source resolution, recursive PDF/DOCX preflight count, backup write preflight and nginx TLS-key readability.
 - Confirm generated credentials are changed and temporary credentials file removed.
 
 ## Suggested OQ
@@ -48,6 +52,8 @@ Eaststone Quality should perform a documented risk assessment and determine the 
 - Authentication, lockout, timeout, reset and session-revocation challenges.
 - Permission matrix positive/negative tests for all built-in roles.
 - Create draft; refresh source; submit; reject creator self-approval; independently approve/release.
+- Recursively scan a representative nested source; verify every classification, correct inferred metadata and complete a signed baseline batch.
+- Add, alter and remove representative source files; verify Unregistered, Changed and Missing detection and audit evidence.
 - Scheduled effective release and automatic supersession/retraining.
 - Tamper with a registered source and verify blocked transition/view/acknowledgement plus audit.
 - Configure role curriculum and current/future-dated users; verify de-duplication.
@@ -69,7 +75,7 @@ Eaststone Quality should perform a documented risk assessment and determine the 
 
 ## Automated evidence in this repository
 
-The test suite covers password policy, forced initial password change, role/user setup, shared-source registration, curriculum creation, independent approval/release, auto-assignment, controlled-copy lifecycle, operator view/signature, matrix completion, tamper blocking/audit and path traversal rejection. CI also enforces Python formatting/lint and a TypeScript production build.
+The test suite covers password policy, forced initial password change, role/user setup, recursive source discovery/classification, signed baseline registration, subsequent change/missing detection, curriculum creation/reinstatement, independent approval/release, auto-assignment, controlled-copy lifecycle, operator view/signature, matrix completion, tamper blocking/audit and path traversal rejection. CI also enforces Python formatting/lint, dependency audits, a TypeScript production build, PowerShell parsing and a Windows installer/Compose argument contract.
 
 Automated tests support but do not replace approved validation protocols, traced evidence and authorised production release.
 

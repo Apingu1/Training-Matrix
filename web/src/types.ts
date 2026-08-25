@@ -111,3 +111,48 @@ export type Requirement = {
 };
 
 export type ApiError = Error & { status?: number };
+
+export type SourceInventoryItem = {
+  id: number;
+  relative_path: string;
+  extension: string;
+  is_supported: boolean;
+  source_size: number;
+  source_modified_at: string;
+  source_sha256?: string | null;
+  classification: "REGISTERED" | "UNREGISTERED" | "DUPLICATE" | "UNSUPPORTED" | "CHANGED" | "MISSING" | "SCAN_ERROR";
+  duplicate_reasons: string[];
+  scan_error?: string | null;
+  missing_since?: string | null;
+  inferred: {
+    code: string;
+    version_label: string;
+    title: string;
+    document_type: string;
+    owner_department: string;
+    issue_date: string;
+  };
+  ready_for_import: boolean;
+  registered_document?: {
+    family_id: number;
+    code: string;
+    title: string;
+    version_id: number;
+    version_label: string;
+    status: string;
+  } | null;
+};
+
+export type SourceInventory = {
+  latest_scan?: {
+    id: number;
+    trigger: string;
+    status: string;
+    started_at: string;
+    completed_at?: string | null;
+    counts: Record<string, number | string | string[]>;
+    error_message?: string | null;
+  } | null;
+  counts: Record<SourceInventoryItem["classification"], number>;
+  items: SourceInventoryItem[];
+};

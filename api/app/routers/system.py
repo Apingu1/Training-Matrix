@@ -16,7 +16,7 @@ from ..config import settings
 from ..database import get_db, runtime
 from ..models import SystemSetting
 from ..schemas import BackupCreateRequest, RestoreRequest, SettingsPatch
-from ..security import AuthContext, require_permission
+from ..security import AuthContext, require_any_permission, require_permission
 from ..services.backup import (
     SAFE_FILENAME,
     create_backup,
@@ -32,7 +32,7 @@ router = APIRouter(prefix="/admin/system", tags=["System Administration"])
 
 @router.get("/info")
 def system_info(
-    _: AuthContext = Depends(require_permission("settings.manage")),
+    _: AuthContext = Depends(require_any_permission("settings.manage", "backups.manage")),
     db: Session = Depends(get_db),
 ):
     return {
@@ -76,6 +76,7 @@ def patch_settings(
         "backup_retention_days",
         "training_default_due_days",
         "acknowledgement_statement",
+        "source_scan_interval_minutes",
     }
     unknown = set(payload.values) - allowed
     if unknown:
@@ -97,6 +98,8 @@ def patch_settings(
                 raise ValueError("must be between 0 and 3650")
             if key == "acknowledgement_statement" and not 10 <= len(value.strip()) <= 2000:
                 raise ValueError("must contain 10 to 2000 characters")
+            if key == "source_scan_interval_minutes" and not 5 <= int(value) <= 1440:
+                raise ValueError("must be between 5 and 1440")
         except (ValueError, ZoneInfoNotFoundError) as exc:
             raise HTTPException(status_code=400, detail=f"Invalid {key}: {exc}") from exc
     before = {}

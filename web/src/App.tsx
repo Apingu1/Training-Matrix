@@ -10,6 +10,7 @@ import MatrixPage from "./pages/MatrixPage";
 import MyTrainingPage from "./pages/MyTrainingPage";
 import PeoplePage from "./pages/PeoplePage";
 import SecurityRolesPage from "./pages/SecurityRolesPage";
+import SourceDiscoveryPage from "./pages/SourceDiscoveryPage";
 import SystemPage from "./pages/SystemPage";
 
 function Gate({ permission, any, children }: { permission?: string; any?: string[]; children: React.ReactNode }) {
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="training" element={<Gate permission="training.view_own"><MyTrainingPage /></Gate>} />
         <Route path="documents" element={<Gate permission="documents.view"><DocumentsPage /></Gate>} />
         <Route path="document-control" element={<Gate any={["documents.manage", "documents.review", "documents.approve"]}><DocumentControlPage /></Gate>} />
+        <Route path="source-discovery" element={<Gate permission="documents.manage"><SourceDiscoveryPage /></Gate>} />
         <Route path="matrix" element={<Gate permission="training.view_team"><MatrixPage /></Gate>} />
         <Route path="people" element={<Gate any={["users.manage", "job_roles.manage"]}><PeoplePage /></Gate>} />
         <Route path="security" element={<Gate permission="security_roles.manage"><SecurityRolesPage /></Gate>} />

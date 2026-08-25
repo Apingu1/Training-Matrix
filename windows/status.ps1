@@ -1,7 +1,7 @@
 . "$PSScriptRoot\common.ps1"
 Assert-Docker
 Assert-Installed
-Invoke-Compose ps
+Invoke-Compose -ComposeArguments @("ps")
 $healthPort = [int](Get-EnvValue (Join-Path $script:InstallRoot ".env") "APP_HEALTH_PORT")
 try {
     $health = Invoke-RestMethod -Uri "http://127.0.0.1:$healthPort/health" -TimeoutSec 5

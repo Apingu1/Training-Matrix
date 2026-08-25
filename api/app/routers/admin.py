@@ -240,7 +240,7 @@ def update_security_role(
 
 @router.get("/users")
 def list_users(
-    _: AuthContext = Depends(require_permission("users.manage")),
+    _: AuthContext = Depends(require_any_permission("users.manage", "job_roles.manage")),
     db: Session = Depends(get_db),
 ):
     return [user_dict(user, db) for user in db.scalars(select(User).order_by(User.display_name)).all()]

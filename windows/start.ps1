@@ -2,7 +2,9 @@
 Assert-Administrator
 Assert-Docker
 Assert-Installed
-Invoke-Compose up -d
+$tlsFolder = Convert-FromDockerPath (Get-EnvValue (Join-Path $script:InstallRoot ".env") "TLS_CERT_HOST_PATH")
+Protect-DockerTlsKey -TlsFolder $tlsFolder
+Invoke-Compose -ComposeArguments @("up", "--detach")
 $healthPort = [int](Get-EnvValue (Join-Path $script:InstallRoot ".env") "APP_HEALTH_PORT")
 $health = Wait-LocalHealth -Port $healthPort
 Write-OperationLog "START" "Version $($health.version)"

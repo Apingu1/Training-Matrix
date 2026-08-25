@@ -86,7 +86,7 @@ def client_ip(request: Request | None) -> str | None:
         return None
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",", 1)[0].strip()[:80]
+        return forwarded.split(",")[-1].strip()[:80]
     return request.client.host[:80] if request.client else None
 
 
