@@ -182,6 +182,18 @@ DEFAULT_SETTINGS = {
         "14",
         "Default completion period for training assignments",
     ),
+    "active_compliance_threshold_percent": (
+        "80",
+        "Minimum active SOP training compliance percentage before an operator is alerted",
+    ),
+    "session_idle_minutes": (
+        str(settings.session_idle_minutes),
+        "Minutes without human activity before the current session is logged out",
+    ),
+    "session_absolute_minutes": (
+        str(settings.jwt_expires_minutes),
+        "Maximum session duration in minutes regardless of activity",
+    ),
     "acknowledgement_statement": (
         "I confirm that I have read and understood this document and will comply with its requirements.",
         "Controlled read-and-understood attestation",
