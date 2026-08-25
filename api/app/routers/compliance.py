@@ -138,9 +138,7 @@ def close_requirement_sources(db: Session, requirement: RoleDocumentRequirement,
         db.delete(source)
         db.flush()
         remaining = db.scalar(
-            select(func.count(AssignmentSource.requirement_id)).where(
-                AssignmentSource.assignment_id == assignment_id
-            )
+            select(func.count(AssignmentSource.requirement_id)).where(AssignmentSource.assignment_id == assignment_id)
         )
         if assignment and assignment.status == "ASSIGNED" and remaining == 0 and not assignment.is_individual:
             assignment.status = "CANCELLED"
