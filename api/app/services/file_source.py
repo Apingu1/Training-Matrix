@@ -31,6 +31,10 @@ def source_root() -> Path:
     return settings.document_root.resolve()
 
 
+def _is_word_temporary(path: Path) -> bool:
+    return path.name.startswith("~$")
+
+
 def resolve_source(relative_path: str, *, require_file: bool = True) -> Path:
     if not relative_path or Path(relative_path).is_absolute():
         raise HTTPException(status_code=400, detail="A relative document path is required")
@@ -40,6 +44,11 @@ def resolve_source(relative_path: str, *, require_file: bool = True) -> Path:
         candidate.relative_to(root)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Document path escapes the configured source folder") from exc
+    if require_file and _is_word_temporary(candidate):
+        raise HTTPException(
+            status_code=409,
+            detail="Microsoft Word temporary lock files (~$...) are not controlled documents. Close the source document and rescan the controlled folder.",
+        )
     if require_file and (not candidate.exists() or not candidate.is_file()):
         raise HTTPException(status_code=404, detail="Document source file was not found")
     if require_file and candidate.suffix.lower() not in ALLOWED_EXTENSIONS:
@@ -103,7 +112,7 @@ def browse_source(relative_path: str = "") -> dict:
                     "type": "directory",
                 }
             )
-        elif child.suffix.lower() in ALLOWED_EXTENSIONS:
+        elif child.suffix.lower() in ALLOWED_EXTENSIONS and not _is_word_temporary(child):
             stat = child.stat()
             items.append(
                 {
@@ -172,9 +181,14 @@ def rendered_pdf(relative_path: str, expected_sha256: str) -> tuple[Path, str]:
             )
             converted = Path(temp_dir) / f"{source.stem}.pdf"
             if result.returncode != 0 or not converted.exists():
+                diagnostic = (result.stderr or result.stdout or "").strip()
                 raise HTTPException(
                     status_code=500,
-                    detail="DOCX preview conversion failed. Document Control should verify the source file.",
+                    detail=(
+                        "DOCX preview conversion failed. The original DOCX remains unchanged and downloadable; "
+                        "Document Control should verify that it is a valid Word document."
+                        + (f" Converter detail: {diagnostic[:300]}" if diagnostic else "")
+                    ),
                 )
             temporary_target = settings.document_cache_root / f".{current_hash}.tmp"
             shutil.copyfile(converted, temporary_target)
