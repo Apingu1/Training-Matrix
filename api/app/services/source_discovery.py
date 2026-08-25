@@ -22,6 +22,7 @@ _STANDARD_CODE = re.compile(
     r"(?i)\b(ES[._ -](?:SOP|COM|QF|ED|LOG(?:BOOK)?|FORM|FRM|AB|MISC)"
     r"(?:[._ -][A-Z]{2,10})?[._ -]\d{1,5}(?:[._ -]F\d{1,4})?)\b"
 )
+_SHORT_SOP_CODE = re.compile(r"(?i)\b(SOP[._ -]\d{1,5}(?:[._ -]F\d{1,4})?)\b")
 _GENERIC_CODE = re.compile(r"(?i)\b(ES(?:[._ -][A-Z0-9]{1,12}){2,5})\b")
 _VERSION = re.compile(r"(?i)(?:^|[._ -])V(?:ER(?:SION)?)?[._ -]?(\d{1,4})(?=$|[._ -])")
 
@@ -54,6 +55,13 @@ class InferredMetadata:
 
 def _normalise_code(value: str) -> str:
     return re.sub(r"[ _-]+", ".", value.strip()).upper().strip(".")
+
+
+def _normalise_detected_code(value: str) -> str:
+    code = _normalise_code(value)
+    if code.startswith("SOP."):
+        code = f"ES.{code}"
+    return code
 
 
 def _document_type(code: str | None, path: Path) -> str:
@@ -94,13 +102,15 @@ def infer_metadata(relative_path: str) -> InferredMetadata:
             if code_match:
                 break
     if not code_match:
+        code_match = _SHORT_SOP_CODE.search(stem)
+    if not code_match:
         code_match = _GENERIC_CODE.search(stem)
-    code = _normalise_code(code_match.group(1)) if code_match else None
+    code = _normalise_detected_code(code_match.group(1)) if code_match else None
     version_match = _VERSION.search(stem)
     version = f"V{int(version_match.group(1)):02d}" if version_match else None
 
     title_source = stem
-    if code_match and code_match.re.pattern == _STANDARD_CODE.pattern and code_match.string == stem:
+    if code_match and code_match.string == stem:
         title_source = title_source[: code_match.start()] + " " + title_source[code_match.end() :]
     title_source = _VERSION.sub(" ", title_source)
     title_source = re.sub(r"[._-]+", " ", title_source)
@@ -142,6 +152,10 @@ def _safe_files(root: Path, errors: list[str]):
                 errors.append(f"Skipped unsafe folder: {candidate}")
         names[:] = allowed_directories
         for filename in filenames:
+            # Microsoft Word creates temporary owner/lock files prefixed with '~$'.
+            # They are not valid DOCX sources and must never enter document control.
+            if filename.startswith("~$"):
+                continue
             count += 1
             if count > MAX_INVENTORY_FILES:
                 raise RuntimeError(f"Controlled source exceeds the safety limit of {MAX_INVENTORY_FILES:,} files")
