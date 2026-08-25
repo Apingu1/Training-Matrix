@@ -3,7 +3,7 @@ name: Training Matrix CI
 on:
   workflow_dispatch:
   push:
-    branches: [main, "feature/**"]
+    branches: [main, "feature/**", "fix/**"]
   pull_request:
 
 permissions:
@@ -167,6 +167,10 @@ jobs:
           done
           if find "$package" -type f \( -name '*.dump' -o -name '*.sqlite' -o -name 'server.key' -o -name '.env' \) -print -quit | grep -q .; then
             echo 'A data, credential or private-key file leaked into the package.' >&2
+            exit 1
+          fi
+          if find "$package" -type d -name '__pycache__' -print -quit | grep -q . || find "$package" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit | grep -q .; then
+            echo 'A Python runtime cache leaked into the commercial package.' >&2
             exit 1
           fi
           (cd "$package" && sha256sum --check PACKAGE_MANIFEST_SHA256.txt)

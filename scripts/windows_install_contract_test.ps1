@@ -61,6 +61,27 @@ try {
         }
     }
 
+    $updater = Get-Content -LiteralPath (Join-Path $PSScriptRoot "..\windows\update.ps1") -Raw
+    foreach ($requiredText in @(
+        "LAST_UPDATE_RESULT.txt",
+        "UPDATE_LOG.txt",
+        'if ([string]$health.version -ne $packageVersion)',
+        "pdf.worker.min-*.js",
+        "Status: SUCCESS",
+        "Status: FAILED"
+    )) {
+        if (-not $updater.Contains($requiredText)) {
+            throw "Updater contract is missing: $requiredText"
+        }
+    }
+
+    $updateLauncher = Get-Content -LiteralPath (Join-Path $PSScriptRoot "..\UPDATE_WINDOWS.bat") -Raw
+    foreach ($requiredText in @("UPDATE_EXIT_CODE", "LAST_UPDATE_RESULT.txt", "pause")) {
+        if (-not $updateLauncher.Contains($requiredText)) {
+            throw "Update launcher contract is missing: $requiredText"
+        }
+    }
+
     $common = Get-Content -LiteralPath (Join-Path $PSScriptRoot "..\windows\common.ps1") -Raw
     foreach ($requiredText in @(
         'for ($attempt = 1; $attempt -le 3; $attempt++)',

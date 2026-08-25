@@ -44,6 +44,8 @@ rm -rf \
   "$SYSTEM_ROOT/api/.ruff_cache" \
   "$SYSTEM_ROOT/web/node_modules" \
   "$SYSTEM_ROOT/web/dist"
+find "$SYSTEM_ROOT" -type d \( -name '__pycache__' -o -name '.pytest_cache' -o -name '.ruff_cache' \) -prune -exec rm -rf {} +
+find "$SYSTEM_ROOT" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
 rm -f \
   "$SYSTEM_ROOT/api/requirements-dev.txt" \
   "$SYSTEM_ROOT/api/pytest.ini" \

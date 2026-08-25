@@ -2,12 +2,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import { CheckCircle2, ChevronDown, FileCheck2, ShieldAlert, X } from "lucide-react";
 import * as pdfjs from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
 import { api, apiBlob } from "../api";
 import { useAuth } from "../hooks/useAuth";
 import type { DocumentVersion, TrainingAssignment } from "../types";
 import { ErrorBanner, LoadingBlock } from "./Common";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+pdfjs.GlobalWorkerOptions.workerPort = new PdfWorker();
 
 function PdfPage({ pdf, pageNumber, watermark }: { pdf: PDFDocumentProxy; pageNumber: number; watermark: string }) {
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);

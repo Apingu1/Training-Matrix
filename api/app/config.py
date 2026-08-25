@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
 
     app_name: str = "Eaststone Training Matrix"
-    app_version: str = "0.2.0"
+    app_version: str = "0.2.1"
     app_env: str = "development"
     timezone: str = Field("Europe/London", alias="TZ")
 

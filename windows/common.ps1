@@ -240,7 +240,7 @@ function Copy-ApplicationFiles {
         $DestinationRoot,
         "/MIR", "/R:2", "/W:2", "/NFL", "/NDL", "/NJH", "/NJS", "/NP",
         "/XD", ".git", ".venv", "node_modules", "dist", ".pytest_cache", ".ruff_cache", "backups", "runtime", "tls",
-        "/XF", ".env", "operations.log", "INITIAL_ADMIN_CREDENTIALS.txt", "INSTALLATION_LOG.txt", "INSTALLATION_REPORT.txt"
+        "/XF", ".env", "operations.log", "INITIAL_ADMIN_CREDENTIALS.txt", "INSTALLATION_LOG.txt", "INSTALLATION_REPORT.txt", "UPDATE_LOG.txt", "LAST_UPDATE_RESULT.txt"
     )
     & robocopy @arguments | Out-Null
     if ($LASTEXITCODE -ge 8) {

@@ -8,11 +8,20 @@ const assetsDirectory = path.join(webRoot, "dist", "assets");
 
 const assetNames = await readdir(assetsDirectory);
 const workerAsset = assetNames.find(
-  (name) => name.startsWith("pdf.worker.min-") && name.endsWith(".mjs"),
+  (name) => name.startsWith("pdf.worker.min-") && name.endsWith(".js"),
 );
 
 if (!workerAsset) {
-  throw new Error("The production build did not emit the PDF.js worker module.");
+  throw new Error("The production build did not emit the bundled PDF.js worker.");
+}
+
+const externalWorkerModule = assetNames.find(
+  (name) => name.startsWith("pdf.worker.min-") && name.endsWith(".mjs"),
+);
+if (externalWorkerModule) {
+  throw new Error(
+    `The production build still depends on an external PDF worker module: ${externalWorkerModule}`,
+  );
 }
 
 const workerStats = await stat(path.join(assetsDirectory, workerAsset));
@@ -41,4 +50,4 @@ for (const configPath of nginxConfigs) {
   }
 }
 
-console.log(`Verified PDF.js worker delivery contract: assets/${workerAsset}`);
+console.log(`Verified bundled PDF.js worker delivery: assets/${workerAsset}`);
