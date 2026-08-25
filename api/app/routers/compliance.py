@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..audit import model_snapshot, record_audit
+from ..audit import record_audit
 from ..database import get_db
 from ..models import (
     AssignmentSource,
@@ -131,25 +130,19 @@ def compliance_for_users(db: Session, users: list[User]) -> dict[int, dict]:
 
 
 def close_requirement_sources(db: Session, requirement: RoleDocumentRequirement, *, reason: str) -> int:
-    sources = db.scalars(
-        select(AssignmentSource).where(AssignmentSource.requirement_id == requirement.id)
-    ).all()
+    sources = db.scalars(select(AssignmentSource).where(AssignmentSource.requirement_id == requirement.id)).all()
     closed = 0
     for source in sources:
-        assignment = db.get(TrainingAssignment, source.assignment_id)
+        assignment_id = source.assignment_id
+        assignment = db.get(TrainingAssignment, assignment_id)
         db.delete(source)
         db.flush()
         remaining = db.scalar(
             select(func.count(AssignmentSource.requirement_id)).where(
-                AssignmentSource.assignment_id == source.assignment_id
+                AssignmentSource.assignment_id == assignment_id
             )
         )
-        if (
-            assignment
-            and assignment.status == "ASSIGNED"
-            and remaining == 0
-            and not assignment.is_individual
-        ):
+        if assignment and assignment.status == "ASSIGNED" and remaining == 0 and not assignment.is_individual:
             assignment.status = "CANCELLED"
             assignment.closed_at = utcnow()
             assignment.closure_reason = f"Role curriculum requirement removed: {reason}"
@@ -201,9 +194,7 @@ def curriculum_grid(
     db: Session = Depends(get_db),
 ):
     roles = db.scalars(
-        select(JobRole)
-        .where(JobRole.is_active.is_(True))
-        .order_by(JobRole.department, JobRole.name)
+        select(JobRole).where(JobRole.is_active.is_(True)).order_by(JobRole.department, JobRole.name)
     ).all()
     documents = (
         db.scalars(
@@ -261,9 +252,7 @@ def curriculum_grid(
                     ),
                     None,
                 ),
-                "required_role_ids": [
-                    role.id for role in roles if (role.id, document.id) in required
-                ],
+                "required_role_ids": [role.id for role in roles if (role.id, document.id) in required],
             }
             for document in documents
         ],
@@ -295,15 +284,23 @@ def update_curriculum_grid(
             detail="The curriculum contains an inactive role or a document that is not an active SOP",
         )
 
-    existing = db.scalars(
-        select(RoleDocumentRequirement).where(
-            RoleDocumentRequirement.job_role_id.in_(role_ids),
-            RoleDocumentRequirement.document_family_id.in_(document_ids),
-        )
-    ).all() if role_ids and document_ids else []
+    existing = (
+        db.scalars(
+            select(RoleDocumentRequirement).where(
+                RoleDocumentRequirement.job_role_id.in_(role_ids),
+                RoleDocumentRequirement.document_family_id.in_(document_ids),
+            )
+        ).all()
+        if role_ids and document_ids
+        else []
+    )
     by_key = {(item.job_role_id, item.document_family_id): item for item in existing}
     before_active = sorted(
-        [list(key) for key, item in by_key.items() if item.is_active and item.requirement_type in TRAINING_REQUIREMENT_TYPES]
+        [
+            list(key)
+            for key, item in by_key.items()
+            if item.is_active and item.requirement_type in TRAINING_REQUIREMENT_TYPES
+        ]
     )
 
     added = 0
@@ -393,18 +390,13 @@ def live_matrix(
         role = db.get(JobRole, job_role_id)
         if not role or not role.is_active:
             raise HTTPException(status_code=404, detail="Active job role not found")
-        users_query = (
-            users_query
-            .join(UserJobRole, UserJobRole.user_id == User.id)
-            .where(
-                UserJobRole.job_role_id == job_role_id,
-                active_role_condition(),
-            )
+        users_query = users_query.join(UserJobRole, UserJobRole.user_id == User.id).where(
+            UserJobRole.job_role_id == job_role_id,
+            active_role_condition(),
         )
     else:
         users_query = (
-            users_query
-            .join(UserJobRole, UserJobRole.user_id == User.id)
+            users_query.join(UserJobRole, UserJobRole.user_id == User.id)
             .join(JobRole, JobRole.id == UserJobRole.job_role_id)
             .where(JobRole.is_active.is_(True), active_role_condition())
         )
@@ -443,7 +435,9 @@ def live_matrix(
                     "user_id": user.id,
                     "status": status,
                     "due_at": assignment.due_at if assignment and assignment.status == "ASSIGNED" else None,
-                    "completed_at": assignment.completed_at if assignment and assignment.status == "COMPLETED" else None,
+                    "completed_at": assignment.completed_at
+                    if assignment and assignment.status == "COMPLETED"
+                    else None,
                     "individual_assignment": bool(assignment and assignment.is_individual),
                 }
             )
