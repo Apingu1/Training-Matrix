@@ -9,6 +9,7 @@ Set-Content -LiteralPath (Join-Path $testRoot ".env") -Value "APP_PORT=8090" -En
 Set-Content -LiteralPath (Join-Path $testRoot "infra\docker-compose.yml") -Value "services: {}" -Encoding UTF8
 $script:InstallRoot = $testRoot
 $script:ComposeFile = Join-Path $testRoot "infra\docker-compose.yml"
+$script:ComposeWindowsOverrideFile = Join-Path $testRoot "infra\docker-compose.windows.generated.yml"
 $script:capturedDockerArguments = @()
 
 function docker {
@@ -35,6 +36,27 @@ try {
     if ($uncConverted -ne "//fileserver/quality/Approved Documents") {
         throw "UNC-to-Docker path conversion failed: $uncConverted"
     }
+    if (-not (Test-IsUncPath "\\fileserver\quality\Approved Documents")) {
+        throw "UNC detection failed"
+    }
+    $uncParts = Split-UncPath "\\fileserver\quality\Approved Documents\SOPs"
+    if ($uncParts.Device -ne "//fileserver/quality" -or $uncParts.Relative -ne "Approved Documents/SOPs") {
+        throw "UNC parsing failed"
+    }
+    $documentVolume = Get-UncVolumeName -Purpose "documents" -Path "\\fileserver\quality\Approved Documents"
+    if ($documentVolume -notmatch '^training-matrix-documents-unc-[0-9a-f]{12}$') {
+        throw "Deterministic UNC volume name is invalid: $documentVolume"
+    }
+    Write-WindowsComposeOverride -DocumentsPath "\\fileserver\quality\Approved Documents" -BackupPath "\\fileserver\backups\Training Matrix"
+    $override = Get-Content -LiteralPath $script:ComposeWindowsOverrideFile -Raw
+    foreach ($requiredText in @("read_only: true", "target: /controlled-documents", "target: /backups", "external: true", $documentVolume)) {
+        if (-not $override.Contains($requiredText)) { throw "Generated UNC Compose override is missing: $requiredText" }
+    }
+    Invoke-Compose -ComposeArguments @("config")
+    $expectedOverrideArgument = "infra/docker-compose.windows.generated.yml"
+    if (-not ($script:capturedDockerArguments -contains $expectedOverrideArgument)) {
+        throw "Invoke-Compose did not load the generated Windows UNC override"
+    }
     if ((Resolve-FolderPath -Path $testRoot) -ne $testRoot) {
         throw "Existing folder resolution failed"
     }
@@ -52,6 +74,7 @@ try {
         "RESUME INSTALLATION",
         "Test-DockerDocumentAccess",
         "Test-DockerBackupAccess",
+        "Initialize-WindowsStorageMounts",
         "Protect-DockerTlsKey",
         'Set-EnvValue $envFile "APP_VERSION" $packageVersion',
         '@("up", "--detach", "--build")'
@@ -85,6 +108,9 @@ try {
     $common = Get-Content -LiteralPath (Join-Path $PSScriptRoot "..\windows\common.ps1") -Raw
     foreach ($requiredText in @(
         'for ($attempt = 1; $attempt -le 3; $attempt++)',
+        'Invoke-DockerQuiet -Arguments @("image", "inspect", "alpine/openssl:latest")',
+        'type=cifs',
+        'prefixpath=',
         '"runtime", "tls"',
         '"*S-1-5-32-545:(R)"'
     )) {

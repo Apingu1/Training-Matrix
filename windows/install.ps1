@@ -99,6 +99,7 @@ try {
     $backupPath = Resolve-FolderPath -Path $backupPath -AllowCreate $true
     New-Item -ItemType Directory -Path $tlsWindows -Force | Out-Null
     Ensure-InstallerImage
+    Initialize-WindowsStorageMounts -DocumentsPath $documentsPath -BackupPath $backupPath
     $documentFileCount = Test-DockerDocumentAccess -Path $documentsPath
     Test-DockerBackupAccess -Path $backupPath
 

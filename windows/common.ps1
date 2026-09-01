@@ -2,7 +2,9 @@ $ErrorActionPreference = "Stop"
 
 $script:InstallRoot = Join-Path $env:ProgramData "Eaststone\TrainingMatrix"
 $script:ComposeFile = Join-Path $script:InstallRoot "infra\docker-compose.yml"
+$script:ComposeWindowsOverrideFile = Join-Path $script:InstallRoot "infra\docker-compose.windows.generated.yml"
 $script:OperationsLog = Join-Path $script:InstallRoot "operations.log"
+$script:SmbCredentials = @{}
 
 function Assert-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -36,7 +38,11 @@ function Invoke-Compose {
     param([Parameter(Mandatory = $true)][string[]]$ComposeArguments)
     Push-Location $script:InstallRoot
     try {
-        & docker compose --env-file .env -f infra/docker-compose.yml @ComposeArguments
+        $composeFiles = @("-f", "infra/docker-compose.yml")
+        if (Test-Path -LiteralPath $script:ComposeWindowsOverrideFile) {
+            $composeFiles += @("-f", "infra/docker-compose.windows.generated.yml")
+        }
+        & docker compose --env-file .env @composeFiles @ComposeArguments
         if ($LASTEXITCODE -ne 0) {
             throw "Docker Compose failed with exit code $LASTEXITCODE."
         }
@@ -125,10 +131,178 @@ function Convert-FromDockerPath {
     return $Path.Replace("/", "\")
 }
 
+function Test-IsUncPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return $Path -match '^\\\\[^\\]+\\[^\\]+'
+}
+
+function Split-UncPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if ($Path -notmatch '^\\\\(?<Server>[^\\]+)\\(?<Share>[^\\]+)(?:\\(?<Relative>.*))?$') {
+        throw "Invalid UNC path: $Path. Use a path in the form \\server\share\folder."
+    }
+    return [pscustomobject]@{
+        Server = $Matches.Server
+        Share = $Matches.Share
+        Relative = if ($Matches.Relative) { $Matches.Relative.Trim('\').Replace('\', '/') } else { '' }
+        Device = "//$($Matches.Server)/$($Matches.Share)"
+    }
+}
+
+function Invoke-DockerQuiet {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+    $previousPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell can promote native stderr to a terminating NativeCommandError
+        # when the script-wide preference is Stop. Exit codes are checked explicitly here.
+        $ErrorActionPreference = "Continue"
+        & docker @Arguments *> $null
+        return $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
+
+function Get-SmbCredentialForServer {
+    param([Parameter(Mandatory = $true)][string]$Server)
+    if ($script:SmbCredentials.ContainsKey($Server)) {
+        return $script:SmbCredentials[$Server]
+    }
+    Write-Host "Docker requires an authorised SMB account to mount the remote share on $Server." -ForegroundColor Cyan
+    Write-Host "Enter an account that has read access to controlled documents and write access to the backup folder."
+    Write-Host "The credential is used to create Docker's protected SMB volume and is not written to the Training Matrix .env file." -ForegroundColor Yellow
+    $credential = Get-Credential -Message "Credentials for \\$Server"
+    if (-not $credential) { throw "Network credential entry was cancelled." }
+    $script:SmbCredentials[$Server] = $credential
+    return $credential
+}
+
+function Get-UncVolumeName {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet("documents", "backups")][string]$Purpose,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+    $normalised = $Path.TrimEnd('\').ToLowerInvariant()
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($normalised))
+    }
+    finally { $sha.Dispose() }
+    $suffix = ([BitConverter]::ToString($hash).Replace('-', '').Substring(0, 12)).ToLowerInvariant()
+    return "training-matrix-$Purpose-unc-$suffix"
+}
+
+function Ensure-DockerUncVolume {
+    param(
+        [Parameter(Mandatory = $true)][string]$VolumeName,
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][bool]$ReadOnly
+    )
+    $unc = Split-UncPath -Path $Path
+    if ((Invoke-DockerQuiet -Arguments @("volume", "inspect", $VolumeName)) -eq 0) {
+        return
+    }
+
+    $credential = Get-SmbCredentialForServer -Server $unc.Server
+    $networkCredential = $credential.GetNetworkCredential()
+    foreach ($value in @($networkCredential.UserName, $networkCredential.Domain, $networkCredential.Password)) {
+        if ($value -and $value.Contains(',')) {
+            throw "The SMB username, domain and password cannot contain a comma because Docker's CIFS volume driver uses comma-separated mount options. Use a dedicated service account without commas in its credential."
+        }
+    }
+    $options = @(
+        "username=$($networkCredential.UserName)",
+        "password=$($networkCredential.Password)",
+        "vers=3.0",
+        "iocharset=utf8",
+        "uid=10001",
+        "gid=10001",
+        "file_mode=0660",
+        "dir_mode=0770",
+        "noperm"
+    )
+    if ($networkCredential.Domain) { $options += "domain=$($networkCredential.Domain)" }
+    if ($unc.Relative) { $options += "prefixpath=$($unc.Relative)" }
+    if ($ReadOnly) { $options += "ro" }
+
+    Write-Host "Creating Docker SMB volume for $Path..." -ForegroundColor Cyan
+    & docker volume create --driver local --opt type=cifs --opt "device=$($unc.Device)" --opt "o=$($options -join ',')" $VolumeName | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker could not create the SMB volume for $Path. Confirm TCP 445 access, the share path and the supplied network account."
+    }
+}
+
+function Write-WindowsComposeOverride {
+    param(
+        [Parameter(Mandatory = $true)][string]$DocumentsPath,
+        [Parameter(Mandatory = $true)][string]$BackupPath
+    )
+    $lines = @("services:")
+    $hasOverride = $false
+    if (Test-IsUncPath -Path $DocumentsPath) {
+        $documentsVolumeName = Get-UncVolumeName -Purpose "documents" -Path $DocumentsPath
+        $hasOverride = $true
+        $lines += @(
+            "  api:",
+            "    volumes:",
+            "      - type: volume",
+            "        source: training-matrix-controlled-documents-unc",
+            "        target: /controlled-documents",
+            "        read_only: true"
+        )
+    }
+    if (Test-IsUncPath -Path $BackupPath) {
+        $hasOverride = $true
+        if (-not (Test-IsUncPath -Path $DocumentsPath)) {
+            $lines += @("  api:", "    volumes:")
+        }
+        $lines += @(
+            "      - type: volume",
+            "        source: training-matrix-backups-unc",
+            "        target: /backups",
+            "  backup-scheduler:",
+            "    volumes:",
+            "      - type: volume",
+            "        source: training-matrix-backups-unc",
+            "        target: /backups"
+        )
+    }
+    if ($hasOverride) {
+        $lines += @("volumes:")
+        if (Test-IsUncPath -Path $DocumentsPath) {
+            $lines += @("  training-matrix-controlled-documents-unc:", "    external: true", "    name: $documentsVolumeName")
+        }
+        if (Test-IsUncPath -Path $BackupPath) {
+            $backupVolumeName = Get-UncVolumeName -Purpose "backups" -Path $BackupPath
+            $lines += @("  training-matrix-backups-unc:", "    external: true", "    name: $backupVolumeName")
+        }
+        Set-Content -LiteralPath $script:ComposeWindowsOverrideFile -Value $lines -Encoding UTF8
+    }
+    elseif (Test-Path -LiteralPath $script:ComposeWindowsOverrideFile) {
+        Remove-Item -LiteralPath $script:ComposeWindowsOverrideFile -Force
+    }
+}
+
+function Initialize-WindowsStorageMounts {
+    param(
+        [Parameter(Mandatory = $true)][string]$DocumentsPath,
+        [Parameter(Mandatory = $true)][string]$BackupPath
+    )
+    if (Test-IsUncPath -Path $DocumentsPath) {
+        $documentsVolumeName = Get-UncVolumeName -Purpose "documents" -Path $DocumentsPath
+        Ensure-DockerUncVolume -VolumeName $documentsVolumeName -Path $DocumentsPath -ReadOnly $true
+    }
+    if (Test-IsUncPath -Path $BackupPath) {
+        $backupVolumeName = Get-UncVolumeName -Purpose "backups" -Path $BackupPath
+        Ensure-DockerUncVolume -VolumeName $backupVolumeName -Path $BackupPath -ReadOnly $false
+    }
+    Write-WindowsComposeOverride -DocumentsPath $DocumentsPath -BackupPath $BackupPath
+}
+
 function Ensure-InstallerImage {
     Write-Host "Checking the TLS and folder-validation image..." -ForegroundColor Cyan
-    & docker image inspect alpine/openssl:latest *> $null
-    if ($LASTEXITCODE -eq 0) { return }
+    if ((Invoke-DockerQuiet -Arguments @("image", "inspect", "alpine/openssl:latest")) -eq 0) { return }
     Write-Host "Downloading alpine/openssl for first-time installation. This requires Docker Hub access."
     for ($attempt = 1; $attempt -le 3; $attempt++) {
         Write-Host "Docker image download attempt $attempt of 3..."
@@ -144,9 +318,15 @@ function Ensure-InstallerImage {
 
 function Test-DockerDocumentAccess {
     param([Parameter(Mandatory = $true)][string]$Path)
-    $dockerPath = Convert-ToDockerPath $Path
-    $mount = "type=bind,source=$dockerPath,target=/probe,readonly"
-    $result = & docker run --rm --entrypoint sh --mount $mount alpine/openssl:latest -c 'find /probe -type f \( -iname "*.pdf" -o -iname "*.docx" \) -print | wc -l'
+    if (Test-IsUncPath -Path $Path) {
+        $volumeName = Get-UncVolumeName -Purpose "documents" -Path $Path
+        $mountArguments = @("--mount", "type=volume,source=$volumeName,target=/probe,readonly")
+    }
+    else {
+        $dockerPath = Convert-ToDockerPath $Path
+        $mountArguments = @("--mount", "type=bind,source=$dockerPath,target=/probe,readonly")
+    }
+    $result = & docker run --rm --entrypoint sh @mountArguments alpine/openssl:latest -c 'find /probe -type f \( -iname "*.pdf" -o -iname "*.docx" \) -print | wc -l'
     if ($LASTEXITCODE -ne 0) {
         throw "Docker Desktop cannot read the selected controlled-document folder. Use a Docker-accessible local path or UNC path and check Docker Desktop file-sharing/proxy settings."
     }
@@ -160,9 +340,15 @@ function Test-DockerDocumentAccess {
 
 function Test-DockerBackupAccess {
     param([Parameter(Mandatory = $true)][string]$Path)
-    $dockerPath = Convert-ToDockerPath $Path
-    $mount = "type=bind,source=$dockerPath,target=/probe"
-    & docker run --rm --entrypoint sh --mount $mount alpine/openssl:latest -c 'testfile=/probe/.eaststone-training-matrix-write-test; : > "$testfile" && rm -f "$testfile"'
+    if (Test-IsUncPath -Path $Path) {
+        $volumeName = Get-UncVolumeName -Purpose "backups" -Path $Path
+        $mountArguments = @("--mount", "type=volume,source=$volumeName,target=/probe")
+    }
+    else {
+        $dockerPath = Convert-ToDockerPath $Path
+        $mountArguments = @("--mount", "type=bind,source=$dockerPath,target=/probe")
+    }
+    & docker run --rm --entrypoint sh @mountArguments alpine/openssl:latest -c 'testfile=/probe/.eaststone-training-matrix-write-test; : > "$testfile" && rm -f "$testfile"'
     if ($LASTEXITCODE -ne 0) {
         throw "Docker Desktop cannot write to the selected backup folder. Select a writable Docker-accessible folder."
     }
@@ -240,7 +426,7 @@ function Copy-ApplicationFiles {
         $DestinationRoot,
         "/MIR", "/R:2", "/W:2", "/NFL", "/NDL", "/NJH", "/NJS", "/NP",
         "/XD", ".git", ".venv", "node_modules", "dist", ".pytest_cache", ".ruff_cache", "backups", "runtime", "tls",
-        "/XF", ".env", "operations.log", "INITIAL_ADMIN_CREDENTIALS.txt", "INSTALLATION_LOG.txt", "INSTALLATION_REPORT.txt", "UPDATE_LOG.txt", "LAST_UPDATE_RESULT.txt"
+        "/XF", ".env", "docker-compose.windows.generated.yml", "operations.log", "INITIAL_ADMIN_CREDENTIALS.txt", "INSTALLATION_LOG.txt", "INSTALLATION_REPORT.txt", "UPDATE_LOG.txt", "LAST_UPDATE_RESULT.txt"
     )
     & robocopy @arguments | Out-Null
     if ($LASTEXITCODE -ge 8) {

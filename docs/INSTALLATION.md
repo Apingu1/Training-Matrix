@@ -11,6 +11,7 @@ Production qualification should pin an approved release commit/image set and rec
 1. Confirm a static server name, time synchronisation and Eaststone backup/patch ownership.
 2. Confirm the existing controlled-document share can be read by the Docker service account. The application mount is read-only.
 3. Create a separate writable backup folder on protected storage.
+   If either selected folder is a UNC share, prepare a dedicated least-privilege domain/service account. It needs read access to approved documents and read/write access to backups. Docker will require this credential to establish SMB mounts.
 4. Confirm HTTPS port `8090` (or choose another) is allowed only from the authorised network.
 5. Decide whether to use Eaststone PKI. The installer creates a 825-day self-signed certificate for initial deployment; a CA-issued server certificate is preferable.
 6. Approve the configuration and validation protocol before regulated data entry.
@@ -36,6 +37,8 @@ Windows often hides drive mappings such as `N:` from a program launched with **R
 - select the top-level Approved Documents folder, not each SOP subfolder.
 
 Before creating or changing the installation, the tool starts a disposable Docker validation container and proves that Docker can read the selected root recursively. It reports the number of PDF/DOCX files found without copying them. It separately proves that the backup folder is writable. If either test fails, no folder change is committed.
+
+For UNC locations, the installer creates Docker-managed SMB 3.0 volumes instead of attempting an unsupported Linux-container bind mount of the Windows UNC path. A Windows credential prompt appears once per file server when the volume is first created. Use a dedicated least-privilege account in `DOMAIN\username` or `username@domain` form. The credential is not placed in `.env`; Docker administrators can inspect Docker volume configuration, so server/Docker administrative access must remain restricted and the service-account password must be rotated through a controlled reinstallation of the affected SMB volumes.
 
 ### First installation and safe resume
 

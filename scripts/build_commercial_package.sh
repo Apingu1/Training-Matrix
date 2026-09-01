@@ -87,10 +87,11 @@ NEW SERVER INSTALLATION
 2. Confirm Docker with Linux-container support is installed and running.
 3. Right-click "01 - INSTALL SERVER.bat" and select Run as administrator.
 4. Paste or select Eaststone's top-level approved-document root (UNC paths are supported) and a separate database-backup folder.
-5. The installer verifies Docker can read every nested PDF/DOCX and can write to the backup folder before it proceeds.
-6. Record the generated installation report and one-time administrator credentials.
-7. Sign in, change the initial password, open Source discovery and run the first recursive scan.
-8. Correct the suggested metadata and complete the signed approved-baseline import before configuring role curricula.
+5. For UNC shares, enter a dedicated DOMAIN\\username or username@domain service account when Windows prompts. It needs read access to approved documents and write access to backups.
+6. The installer creates Docker-managed SMB 3.0 volumes, then verifies it can read every nested PDF/DOCX and write to the backup folder before proceeding.
+7. Record the generated installation report and one-time administrator credentials.
+8. Sign in, change the initial password, open Source discovery and run the first recursive scan.
+9. Correct the suggested metadata and complete the signed approved-baseline import before configuring role curricula.
 
 SAFE RETRY
 If an image download or first build fails, correct Docker Desktop DNS/proxy access,
