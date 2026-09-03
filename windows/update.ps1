@@ -42,6 +42,17 @@ try {
     New-Item -ItemType Directory -Path $releaseArchive -Force | Out-Null
     Copy-ApplicationFiles $script:InstallRoot $releaseArchive
 
+    # Reconcile exact UNC subfolder mounts before taking the safety backup. This
+    # also migrates installations created by the earlier CIFS prefixpath design,
+    # which some Docker Desktop engines widened to the whole SMB share.
+    $currentEnv = Join-Path $script:InstallRoot ".env"
+    $currentDocumentsPath = Convert-FromDockerPath (Get-EnvValue $currentEnv "DOCUMENTS_HOST_PATH")
+    $currentBackupPath = Convert-FromDockerPath (Get-EnvValue $currentEnv "BACKUP_HOST_PATH")
+    Initialize-WindowsStorageMounts -DocumentsPath $currentDocumentsPath -BackupPath $currentBackupPath
+    Invoke-Compose -ComposeArguments @("up", "--detach", "--force-recreate", "api", "backup-scheduler")
+    $currentHealthPort = [int](Get-EnvValue $currentEnv "APP_HEALTH_PORT")
+    Wait-LocalHealth -Port $currentHealthPort | Out-Null
+
     Write-Host "Creating a verified pre-update database backup..."
     Invoke-Compose -ComposeArguments @("exec", "--no-TTY", "api", "python", "-m", "app.cli", "create-backup", "--type", "PRE_UPDATE", "--reason", "Automatic safety backup before server update $timestamp")
     Invoke-Compose -ComposeArguments @("stop", "web", "api", "backup-scheduler")
@@ -51,6 +62,9 @@ try {
     Set-EnvValue $installedEnv "APP_VERSION" $packageVersion
     Protect-SensitiveFile $installedEnv
     $tlsFolder = Convert-FromDockerPath (Get-EnvValue $installedEnv "TLS_CERT_HOST_PATH")
+    $documentsPath = Convert-FromDockerPath (Get-EnvValue $installedEnv "DOCUMENTS_HOST_PATH")
+    $backupPath = Convert-FromDockerPath (Get-EnvValue $installedEnv "BACKUP_HOST_PATH")
+    Initialize-WindowsStorageMounts -DocumentsPath $documentsPath -BackupPath $backupPath
     Protect-DockerTlsKey -TlsFolder $tlsFolder
     Invoke-Compose -ComposeArguments @("up", "--detach", "--build")
 
@@ -59,6 +73,12 @@ try {
     if ([string]$health.version -ne $packageVersion) {
         throw "The server reported version $($health.version), but the update package is version $packageVersion."
     }
+
+    $serverName = ($env:COMPUTERNAME).ToLowerInvariant()
+    $appPort = [int](Get-EnvValue $installedEnv "APP_PORT")
+    $certificatePath = Join-Path $tlsFolder "server.crt"
+    Publish-ClientDeployment -PackageSystemRoot $sourceRoot -ServerName $serverName -Port $appPort -CertificatePath $certificatePath -AppVersion $packageVersion
+    Remove-LegacyUncVolumes -DocumentsPath $documentsPath -BackupPath $backupPath
 
     $workerOutput = @(Invoke-Compose -ComposeArguments @(
         "exec", "--no-TTY", "web", "sh", "-c",

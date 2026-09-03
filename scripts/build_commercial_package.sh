@@ -56,7 +56,7 @@ rm -f \
 copy_server_launcher() {
   local source_name=$1
   local package_name=$2
-  sed 's|%~dp0windows\\|%~dp0System\\windows\\|g' \
+  sed 's|"windows\\|"System\\windows\\|g' \
     "$PROJECT_ROOT/$source_name" > "$PACKAGE_ROOT/$package_name"
 }
 
@@ -70,7 +70,7 @@ copy_server_launcher "RESET_ADMIN_PASSWORD_WINDOWS.bat" "07 - RESET ADMIN PASSWO
 copy_server_launcher "UNINSTALL_WINDOWS.bat" "UNINSTALL SERVER - KEEP DATA.bat"
 copy_server_launcher "COMPLETE_UNINSTALL_DELETE_DATA_WINDOWS.bat" "DANGER - COMPLETE UNINSTALL DELETE DATABASE.bat"
 
-sed 's|%~dp0windows\\client_setup.ps1|%~dp0client_setup.ps1|g' \
+sed 's|"windows\\client_setup.ps1"|"client_setup.ps1"|g' \
   "$PROJECT_ROOT/CLIENT_SETUP_WINDOWS.bat" \
   > "$PACKAGE_ROOT/CLIENT DEPLOYMENT/01 - INSTALL CLIENT.bat"
 cp "$PROJECT_ROOT/windows/client_setup.ps1" "$PACKAGE_ROOT/CLIENT DEPLOYMENT/client_setup.ps1"
@@ -99,9 +99,9 @@ rerun this installer, and type RESUME INSTALLATION. Existing generated secrets a
 database state are retained. Progress is also written to INSTALLATION_LOG.txt.
 
 CLIENT DEPLOYMENT
-After server installation, securely copy the generated tls\server.crt file into the
-"CLIENT DEPLOYMENT" folder. Run "01 - INSTALL CLIENT.bat" as administrator on each
-authorised workstation and verify its certificate fingerprint against the installation report.
+The server installer automatically places server.crt and client-config.json in the
+"CLIENT DEPLOYMENT" folder. Copy that prepared folder to each authorised workstation,
+then run "01 - INSTALL CLIENT.bat" as administrator. No server-name or port entry is required.
 
 UPDATES
 Extract the new approved artifact and run "05 - UPDATE SERVER.bat" as administrator.
@@ -119,12 +119,11 @@ EOF
 cat > "$PACKAGE_ROOT/CLIENT DEPLOYMENT/README.txt" <<'EOF'
 EASTSTONE TRAINING MATRIX - CLIENT DEPLOYMENT
 
-1. Complete the server installation first.
-2. Copy C:\ProgramData\Eaststone\TrainingMatrix\tls\server.crt into this folder using an authenticated administrative channel.
-3. Copy this CLIENT DEPLOYMENT folder to the authorised workstation.
-4. Run "01 - INSTALL CLIENT.bat" as administrator.
-5. Enter the exact server computer name and HTTPS port selected during installation.
-6. Verify the displayed certificate fingerprint against the server installation report.
+1. Run the server installation/update from the extracted package first. It automatically writes the approved server.crt and client-config.json into this folder.
+2. Copy this prepared CLIENT DEPLOYMENT folder to the authorised workstation.
+3. Run "01 - INSTALL CLIENT.bat" as administrator.
+4. No server name or HTTPS port entry is required; both are loaded from client-config.json.
+5. Verify the displayed certificate fingerprint against the server installation report.
 
 Never distribute server.key, .env, database dumps or one-time administrator credentials.
 EOF

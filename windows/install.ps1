@@ -147,6 +147,8 @@ try {
         "TLS certificate SHA-256: $((Get-FileHash $certificatePath -Algorithm SHA256).Hash)"
     )
     Set-Content -LiteralPath $reportFile -Value $report -Encoding UTF8
+    Publish-ClientDeployment -PackageSystemRoot $sourceRoot -ServerName $serverName -Port $appPort -CertificatePath $certificatePath -AppVersion $packageVersion
+    Remove-LegacyUncVolumes -DocumentsPath $documentsPath -BackupPath $backupPath
     Write-OperationLog "INSTALL" "Version $($health.version); documents=$documentsPath; backups=$backupPath; port=$appPort; recursive_files=$documentFileCount"
 
     Write-Host ""
@@ -154,7 +156,7 @@ try {
     Write-Host "URL: https://${serverName}:$appPort"
     Write-Host "Initial credentials: $credentialsFile" -ForegroundColor Yellow
     Write-Host "Installation report: $reportFile"
-    Write-Host "Distribute and trust tls\server.crt on authorised clients before use."
+    Write-Host "The CLIENT DEPLOYMENT folder now contains the approved certificate and server configuration."
 }
 catch {
     Write-Host ""

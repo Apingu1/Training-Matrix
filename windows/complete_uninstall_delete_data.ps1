@@ -16,9 +16,11 @@ $documentsPath = Convert-FromDockerPath (Get-EnvValue $installedEnv "DOCUMENTS_H
 $backupPath = Convert-FromDockerPath (Get-EnvValue $installedEnv "BACKUP_HOST_PATH")
 if (Test-IsUncPath -Path $documentsPath) {
     Invoke-DockerQuiet -Arguments @("volume", "rm", (Get-UncVolumeName -Purpose "documents" -Path $documentsPath)) | Out-Null
+    Invoke-DockerQuiet -Arguments @("volume", "rm", (Get-LegacyUncVolumeName -Purpose "documents" -Path $documentsPath)) | Out-Null
 }
 if (Test-IsUncPath -Path $backupPath) {
     Invoke-DockerQuiet -Arguments @("volume", "rm", (Get-UncVolumeName -Purpose "backups" -Path $backupPath)) | Out-Null
+    Invoke-DockerQuiet -Arguments @("volume", "rm", (Get-LegacyUncVolumeName -Purpose "backups" -Path $backupPath)) | Out-Null
 }
 if (Get-NetFirewallRule -DisplayName "Eaststone Training Matrix HTTPS" -ErrorAction SilentlyContinue) {
     Remove-NetFirewallRule -DisplayName "Eaststone Training Matrix HTTPS"

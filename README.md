@@ -24,7 +24,8 @@ The first release is intentionally a clean build. It does **not** import the cur
 - Searchable audit trail with CSV/PDF export.
 - Automatic/manual PostgreSQL backups, hash manifests, verification and staged restore with a pre-restore safety backup.
 - Docker-based server deployment, Windows administration scripts and CI checks.
-- Resumable Windows installation with pasted UNC/mapped-drive support, Docker-managed SMB 3.0 volumes for remote shares, Docker read/write preflight, visible health progress and Docker-compatible TLS key ACL repair.
+- Resumable Windows installation with pasted UNC/mapped-drive support, exact SMB volume-subpath isolation for remote folders, Docker read/write preflight, visible health progress and Docker-compatible TLS key ACL repair.
+- Server-prepared client deployment with the approved certificate, server name and HTTPS port; client workstations require no manual connection prompts.
 
 ## Quick start for development
 

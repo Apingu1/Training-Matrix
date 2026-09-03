@@ -27,6 +27,8 @@ def test_recursive_discovery_baseline_import_and_change_detection(client, helper
     duplicate.write_bytes(approved.read_bytes())
     unsupported = nested / "working-notes.xlsx"
     unsupported.write_bytes(b"not a controlled PDF or DOCX")
+    word_lock = nested / "~$ES.SOP.778.V01.docx"
+    word_lock.write_bytes(b"incomplete transient Microsoft Word lock file")
 
     inventory = assert_ok(
         client.post(
@@ -42,6 +44,7 @@ def test_recursive_discovery_baseline_import_and_change_detection(client, helper
     assert by_path[approved_path]["classification"] == "DUPLICATE"
     assert by_path[duplicate_path]["classification"] == "DUPLICATE"
     assert by_path[unsupported_path]["classification"] == "UNSUPPORTED"
+    assert word_lock.relative_to(DOCUMENT_ROOT).as_posix() not in by_path
     assert by_path[approved_path]["inferred"]["code"] == "ES.SOP.777"
     assert by_path[approved_path]["inferred"]["version_label"] == "V03"
 

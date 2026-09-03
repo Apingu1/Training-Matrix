@@ -1,6 +1,9 @@
 @echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0windows\update.ps1"
+setlocal
+pushd "%~dp0" || (echo Unable to open the extracted Training Matrix folder. & pause & exit /b 1)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "windows\update.ps1"
 set "UPDATE_EXIT_CODE=%ERRORLEVEL%"
+popd
 echo.
 if "%UPDATE_EXIT_CODE%"=="0" (
     echo Update command finished successfully.

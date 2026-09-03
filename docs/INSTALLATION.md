@@ -25,8 +25,10 @@ Production qualification should pin an approved release commit/image set and rec
 5. Wait for database migration, image build and health checks.
 6. Retain `C:\ProgramData\Eaststone\TrainingMatrix\INSTALLATION_REPORT.txt` as IQ evidence.
 7. Retrieve the one-time credentials from `INITIAL_ADMIN_CREDENTIALS.txt`, sign in, change the password immediately and securely delete that credentials file.
-8. Copy `tls\server.crt` through an authenticated administrative channel to each authorised workstation. Place it beside `CLIENT_SETUP_WINDOWS.bat`, then run the client script as administrator with the exact server name. Verify the displayed fingerprint against the installation report.
+8. The successful server installation copies `server.crt` and a generated `client-config.json` into the release's `CLIENT DEPLOYMENT` folder. Copy that prepared folder through an authenticated administrative channel to each authorised workstation, then run `01 - INSTALL CLIENT.bat` as administrator. The client reads the server name and port automatically. Verify the displayed fingerprint against the installation report.
 9. Complete the qualification and release checks in [Security and validation](SECURITY_AND_VALIDATION.md).
+
+The Windows launchers use `pushd` before invoking PowerShell, so an extracted package may be run directly from an authorised mapped drive or UNC share. The command window remains open after server or client installation and displays an explicit success or failure result.
 
 ### Mapped drives and UNC paths
 
@@ -39,6 +41,8 @@ Windows often hides drive mappings such as `N:` from a program launched with **R
 Before creating or changing the installation, the tool starts a disposable Docker validation container and proves that Docker can read the selected root recursively. It reports the number of PDF/DOCX files found without copying them. It separately proves that the backup folder is writable. If either test fails, no folder change is committed.
 
 For UNC locations, the installer creates Docker-managed SMB 3.0 volumes instead of attempting an unsupported Linux-container bind mount of the Windows UNC path. A Windows credential prompt appears once per file server when the volume is first created. Use a dedicated least-privilege account in `DOMAIN\username` or `username@domain` form. The credential is not placed in `.env`; Docker administrators can inspect Docker volume configuration, so server/Docker administrative access must remain restricted and the service-account password must be rotated through a controlled reinstallation of the affected SMB volumes.
+
+The SMB volume is mounted at the share boundary and Docker's volume-subpath restriction exposes only the exact selected controlled-document or backup subfolder to the relevant container. This prevents a deep UNC selection from silently widening to the entire network share.
 
 ### First installation and safe resume
 

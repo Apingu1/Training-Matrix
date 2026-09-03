@@ -142,6 +142,10 @@ def _safe_files(root: Path, errors: list[str]):
                 errors.append(f"Skipped unsafe folder: {candidate}")
         names[:] = allowed_directories
         for filename in filenames:
+            # Microsoft Office creates incomplete lock files beside open documents.
+            # They are not controlled sources and cannot be previewed or registered.
+            if filename.startswith("~$"):
+                continue
             count += 1
             if count > MAX_INVENTORY_FILES:
                 raise RuntimeError(f"Controlled source exceeds the safety limit of {MAX_INVENTORY_FILES:,} files")

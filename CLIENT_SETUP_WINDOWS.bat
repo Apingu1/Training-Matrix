@@ -1,6 +1,13 @@
 @echo off
-set /p EASTSTONE_SERVER=Server computer name:
-set /p EASTSTONE_PORT=HTTPS port [8090]:
-if "%EASTSTONE_PORT%"=="" set EASTSTONE_PORT=8090
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0windows\client_setup.ps1" -ServerName "%EASTSTONE_SERVER%" -Port %EASTSTONE_PORT% -CertificatePath "%~dp0server.crt"
+setlocal
+pushd "%~dp0" || (
+  echo Unable to open the Client Deployment folder.
+  pause
+  exit /b 1
+)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "windows\client_setup.ps1"
+set "EASTSTONE_EXIT_CODE=%ERRORLEVEL%"
+popd
+if not "%EASTSTONE_EXIT_CODE%"=="0" echo Client installation failed with exit code %EASTSTONE_EXIT_CODE%.
 pause
+exit /b %EASTSTONE_EXIT_CODE%

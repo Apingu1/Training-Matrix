@@ -44,12 +44,12 @@ try {
         throw "UNC parsing failed"
     }
     $documentVolume = Get-UncVolumeName -Purpose "documents" -Path "\\fileserver\quality\Approved Documents"
-    if ($documentVolume -notmatch '^training-matrix-documents-unc-[0-9a-f]{12}$') {
+    if ($documentVolume -notmatch '^training-matrix-documents-unc-v2-[0-9a-f]{12}$') {
         throw "Deterministic UNC volume name is invalid: $documentVolume"
     }
     Write-WindowsComposeOverride -DocumentsPath "\\fileserver\quality\Approved Documents" -BackupPath "\\fileserver\backups\Training Matrix"
     $override = Get-Content -LiteralPath $script:ComposeWindowsOverrideFile -Raw
-    foreach ($requiredText in @("read_only: true", "target: /controlled-documents", "target: /backups", "external: true", $documentVolume)) {
+    foreach ($requiredText in @("read_only: true", "target: /controlled-documents", "target: /backups", "subpath:", "Approved Documents", "external: true", $documentVolume)) {
         if (-not $override.Contains($requiredText)) { throw "Generated UNC Compose override is missing: $requiredText" }
     }
     Invoke-Compose -ComposeArguments @("config")
@@ -110,7 +110,7 @@ try {
         'for ($attempt = 1; $attempt -le 3; $attempt++)',
         'Invoke-DockerQuiet -Arguments @("image", "inspect", "alpine/openssl:latest")',
         'type=cifs',
-        'prefixpath=',
+        'volume-subpath=',
         '"runtime", "tls"',
         '"*S-1-5-32-545:(R)"'
     )) {

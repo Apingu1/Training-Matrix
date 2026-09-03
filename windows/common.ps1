@@ -190,7 +190,33 @@ function Get-UncVolumeName {
     }
     finally { $sha.Dispose() }
     $suffix = ([BitConverter]::ToString($hash).Replace('-', '').Substring(0, 12)).ToLowerInvariant()
+    return "training-matrix-$Purpose-unc-v2-$suffix"
+}
+
+function Get-LegacyUncVolumeName {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet("documents", "backups")][string]$Purpose,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+    $normalised = $Path.TrimEnd('\').ToLowerInvariant()
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { $hash = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($normalised)) }
+    finally { $sha.Dispose() }
+    $suffix = ([BitConverter]::ToString($hash).Replace('-', '').Substring(0, 12)).ToLowerInvariant()
     return "training-matrix-$Purpose-unc-$suffix"
+}
+
+function Remove-LegacyUncVolumes {
+    param(
+        [Parameter(Mandatory = $true)][string]$DocumentsPath,
+        [Parameter(Mandatory = $true)][string]$BackupPath
+    )
+    if (Test-IsUncPath -Path $DocumentsPath) {
+        Invoke-DockerQuiet -Arguments @("volume", "rm", (Get-LegacyUncVolumeName -Purpose "documents" -Path $DocumentsPath)) | Out-Null
+    }
+    if (Test-IsUncPath -Path $BackupPath) {
+        Invoke-DockerQuiet -Arguments @("volume", "rm", (Get-LegacyUncVolumeName -Purpose "backups" -Path $BackupPath)) | Out-Null
+    }
 }
 
 function Ensure-DockerUncVolume {
@@ -223,7 +249,6 @@ function Ensure-DockerUncVolume {
         "noperm"
     )
     if ($networkCredential.Domain) { $options += "domain=$($networkCredential.Domain)" }
-    if ($unc.Relative) { $options += "prefixpath=$($unc.Relative)" }
     if ($ReadOnly) { $options += "ro" }
 
     Write-Host "Creating Docker SMB volume for $Path..." -ForegroundColor Cyan
@@ -241,9 +266,10 @@ function Write-WindowsComposeOverride {
     $lines = @("services:")
     $hasOverride = $false
     if (Test-IsUncPath -Path $DocumentsPath) {
+        $documentsUnc = Split-UncPath -Path $DocumentsPath
         $documentsVolumeName = Get-UncVolumeName -Purpose "documents" -Path $DocumentsPath
         $hasOverride = $true
-        $lines += @(
+        $documentMount = @(
             "  api:",
             "    volumes:",
             "      - type: volume",
@@ -251,22 +277,36 @@ function Write-WindowsComposeOverride {
             "        target: /controlled-documents",
             "        read_only: true"
         )
+        if ($documentsUnc.Relative) {
+            $documentMount += @("        volume:", "          subpath: $($documentsUnc.Relative | ConvertTo-Json -Compress)")
+        }
+        $lines += $documentMount
     }
     if (Test-IsUncPath -Path $BackupPath) {
+        $backupUnc = Split-UncPath -Path $BackupPath
         $hasOverride = $true
         if (-not (Test-IsUncPath -Path $DocumentsPath)) {
             $lines += @("  api:", "    volumes:")
         }
-        $lines += @(
+        $backupMounts = @(
             "      - type: volume",
             "        source: training-matrix-backups-unc",
-            "        target: /backups",
+            "        target: /backups"
+        )
+        if ($backupUnc.Relative) {
+            $backupMounts += @("        volume:", "          subpath: $($backupUnc.Relative | ConvertTo-Json -Compress)")
+        }
+        $backupMounts += @(
             "  backup-scheduler:",
             "    volumes:",
             "      - type: volume",
             "        source: training-matrix-backups-unc",
             "        target: /backups"
         )
+        if ($backupUnc.Relative) {
+            $backupMounts += @("        volume:", "          subpath: $($backupUnc.Relative | ConvertTo-Json -Compress)")
+        }
+        $lines += $backupMounts
     }
     if ($hasOverride) {
         $lines += @("volumes:")
@@ -319,14 +359,17 @@ function Ensure-InstallerImage {
 function Test-DockerDocumentAccess {
     param([Parameter(Mandatory = $true)][string]$Path)
     if (Test-IsUncPath -Path $Path) {
+        $unc = Split-UncPath -Path $Path
         $volumeName = Get-UncVolumeName -Purpose "documents" -Path $Path
-        $mountArguments = @("--mount", "type=volume,source=$volumeName,target=/probe,readonly")
+        $mountSpec = "type=volume,source=$volumeName,target=/probe,readonly"
+        if ($unc.Relative) { $mountSpec += ",volume-subpath=$($unc.Relative)" }
+        $mountArguments = @("--mount", $mountSpec)
     }
     else {
         $dockerPath = Convert-ToDockerPath $Path
         $mountArguments = @("--mount", "type=bind,source=$dockerPath,target=/probe,readonly")
     }
-    $result = & docker run --rm --entrypoint sh @mountArguments alpine/openssl:latest -c 'find /probe -type f \( -iname "*.pdf" -o -iname "*.docx" \) -print | wc -l'
+    $result = & docker run --rm --entrypoint sh @mountArguments alpine/openssl:latest -c 'find /probe -type f ! -name "~\$*" \( -iname "*.pdf" -o -iname "*.docx" \) -print | wc -l'
     if ($LASTEXITCODE -ne 0) {
         throw "Docker Desktop cannot read the selected controlled-document folder. Use a Docker-accessible local path or UNC path and check Docker Desktop file-sharing/proxy settings."
     }
@@ -341,8 +384,11 @@ function Test-DockerDocumentAccess {
 function Test-DockerBackupAccess {
     param([Parameter(Mandatory = $true)][string]$Path)
     if (Test-IsUncPath -Path $Path) {
+        $unc = Split-UncPath -Path $Path
         $volumeName = Get-UncVolumeName -Purpose "backups" -Path $Path
-        $mountArguments = @("--mount", "type=volume,source=$volumeName,target=/probe")
+        $mountSpec = "type=volume,source=$volumeName,target=/probe"
+        if ($unc.Relative) { $mountSpec += ",volume-subpath=$($unc.Relative)" }
+        $mountArguments = @("--mount", $mountSpec)
     }
     else {
         $dockerPath = Convert-ToDockerPath $Path
@@ -393,6 +439,37 @@ function Write-OperationLog {
     param([string]$Action, [string]$Detail)
     $entry = "{0:u}`t{1}`t{2}`t{3}" -f (Get-Date), $env:USERNAME, $Action, $Detail
     Add-Content -LiteralPath $script:OperationsLog -Value $entry -Encoding UTF8
+}
+
+function Publish-ClientDeployment {
+    param(
+        [Parameter(Mandatory = $true)][string]$PackageSystemRoot,
+        [Parameter(Mandatory = $true)][string]$ServerName,
+        [Parameter(Mandatory = $true)][int]$Port,
+        [Parameter(Mandatory = $true)][string]$CertificatePath,
+        [Parameter(Mandatory = $true)][string]$AppVersion
+    )
+    $packageRoot = Split-Path $PackageSystemRoot -Parent
+    $clientFolder = Join-Path $packageRoot "CLIENT DEPLOYMENT"
+    if (-not (Test-Path -LiteralPath $clientFolder)) {
+        throw "The release is missing its CLIENT DEPLOYMENT folder: $clientFolder"
+    }
+    if (-not (Test-Path -LiteralPath $CertificatePath)) {
+        throw "The installed server certificate was not found: $CertificatePath"
+    }
+
+    $clientCertificate = Join-Path $clientFolder "server.crt"
+    Copy-Item -LiteralPath $CertificatePath -Destination $clientCertificate -Force
+    $configuration = [ordered]@{
+        server_name = $ServerName
+        https_port = $Port
+        certificate_filename = "server.crt"
+        certificate_sha256 = (Get-FileHash -LiteralPath $CertificatePath -Algorithm SHA256).Hash
+        app_version = $AppVersion
+        generated_at = (Get-Date).ToString("o")
+    }
+    $configuration | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $clientFolder "client-config.json") -Encoding UTF8
+    Write-Host "Client Deployment was configured automatically for https://${ServerName}:$Port." -ForegroundColor Green
 }
 
 function Wait-LocalHealth {
