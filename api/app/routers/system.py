@@ -28,6 +28,7 @@ from ..services.backup import (
 from ..services.file_source import source_status
 
 router = APIRouter(prefix="/admin/system", tags=["System Administration"])
+SENSITIVE_SETTING_KEYS = {"notification_smtp_password"}
 
 
 @router.get("/info")
@@ -42,7 +43,11 @@ def system_info(
         "database_name": runtime.database_name,
         "document_source": source_status(),
         "backup_path": str(settings.backup_root),
-        "settings": {item.key: item.value for item in db.scalars(select(SystemSetting)).all()},
+        "settings": {
+            item.key: item.value
+            for item in db.scalars(select(SystemSetting)).all()
+            if item.key not in SENSITIVE_SETTING_KEYS
+        },
     }
 
 
@@ -58,7 +63,9 @@ def list_settings(
             "description": item.description,
             "updated_at": item.updated_at,
         }
-        for item in db.scalars(select(SystemSetting).order_by(SystemSetting.key)).all()
+        for item in db.scalars(
+            select(SystemSetting).where(SystemSetting.key.not_in(SENSITIVE_SETTING_KEYS)).order_by(SystemSetting.key)
+        ).all()
     ]
 
 

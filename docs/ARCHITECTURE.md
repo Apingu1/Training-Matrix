@@ -9,6 +9,7 @@ flowchart TD
     API --> DB[("PostgreSQL")]
     API --> Docs["Shared documents folder\nread-only mount"]
     API --> Cache["Disposable DOCX/PDF cache"]
+    API --> SMTP["Approved SMTP service"]
     Scheduler["Backup scheduler"] --> DB
     Scheduler --> Backups["External backup folder"]
 ```
@@ -60,7 +61,15 @@ An authorised controller can refresh the file fingerprint only while a version i
 6. Password re-authentication creates an immutable acknowledgement bound to user, session, assignment, version and SHA-256.
 7. A replacement version supersedes the old version, cancels incomplete old assignments and creates retraining assignments when the revision is marked `RETRAIN`.
 
-`REFERENCE_ONLY` and `CONTROLLED_COPY` role mappings appear in the curriculum but do not create read-and-understand assignments. Physical controlled copies are tracked separately by copy number, department and location.
+Legacy `REFERENCE_ONLY` and `CONTROLLED_COPY` mappings do not create read-and-understand assignments. They are excluded from the SOP-only curriculum workspace. Physical controlled copies are tracked separately by copy number, department and location.
+
+The current role-curriculum workspace intentionally shows SOPs only. Forms remain controlled documents linked visually to their parent SOP and are not duplicated as reading requirements.
+
+## Email notification delivery
+
+The API worker evaluates notifications once per minute when email alerts are enabled. It consolidates multiple new assignments or overdue items into one operator email, records each delivery attempt, retries failures with bounded backoff, and sends a below-threshold message only when the operator crosses from compliant to below the configured threshold. A manual run control supports configuration verification and controlled recovery.
+
+SMTP host, sender, security mode, account and overdue frequency are controlled system settings. The SMTP password is encrypted with a key derived from the installation secret; it is never returned through the API or included in audit before/after values. Assignment and compliance notification state prevents duplicate messages while retaining recurring overdue reminders.
 
 ## Training status presentation
 
@@ -69,7 +78,6 @@ An authorised controller can refresh the file fingerprint only while a version i
 | Reading required | Current assignment is assigned and within its due date |
 | Read and acknowledged | Current or historical assignment has an attributable acknowledgement |
 | Reading overdue | Current assignment remains incomplete after its due date |
-| Reference only | The role mapping is informational and creates no acknowledgement assignment |
 | No assignment | No assignment exists for the current effective version and operator |
 | Closed — superseded before completion | An incomplete historical assignment was closed when its version was superseded |
 | Waived | An authorised person waived the assignment with a recorded reason |
@@ -84,6 +92,7 @@ The interface uses these plain-language labels throughout the live matrix and tr
 - `SourceScanRun`, `SourceInventoryFile`
 - `RoleDocumentRequirement`, `TrainingAssignment`, `AssignmentSource`, `TrainingAcknowledgement`
 - `ControlledCopyIssue`
+- `AssignmentNotificationState`, `ComplianceNotificationState`, `EmailNotificationDelivery`
 - `AuditEvent`, `SystemSetting`, `BackupRun`
 
 ## Trust boundaries

@@ -2,9 +2,10 @@
 
 ## Implemented controls
 
-- Argon2 password hashing and minimum complexity policy.
+- Argon2 password hashing and an eight-character minimum with one uppercase letter and one number.
 - Forced password change for temporary/reset credentials.
 - Database-backed, revocable sessions with configurable inactivity expiry.
+- Configurable absolute session duration in addition to inactivity expiry.
 - Failed-login counting, timed lock and audited successes/failures.
 - Server-side permission checks on every protected API route.
 - Dynamic least-privilege roles; built-in roles cannot be retired; last-admin guard.
@@ -18,6 +19,7 @@
 - Append-only database triggers for audit events, acknowledgements and signatures.
 - Reason-required administrative and quality actions.
 - Non-destructive staged restore and pre-change backups.
+- Encrypted SMTP password storage, permissioned notification administration, consolidated email delivery, bounded retries and audited delivery outcomes.
 
 ## Residual risks and procedural controls
 
@@ -46,6 +48,7 @@ Eaststone Quality should perform a documented risk assessment and determine the 
 - Confirm migration head, container health and installation report.
 - Confirm UNC/mapped source resolution, recursive PDF/DOCX preflight count, backup write preflight and nginx TLS-key readability.
 - Confirm generated credentials are changed and temporary credentials file removed.
+- Confirm SMTP egress is restricted to the approved host/port and the notification account has only the permissions it needs.
 
 ## Suggested OQ
 
@@ -57,7 +60,10 @@ Eaststone Quality should perform a documented risk assessment and determine the 
 - Scheduled effective release and automatic supersession/retraining.
 - Tamper with a registered source and verify blocked transition/view/acknowledgement plus audit.
 - Configure role curriculum and current/future-dated users; verify de-duplication.
+- Verify SOP-only curriculum grid, configurable compliance threshold, operator scores, alerts and multi-select live-matrix filters.
 - View and sign as operator; verify exact version/hash/history and matrix status.
+- Configure SMTP, prove password masking, send a test, create multiple assignments and verify one consolidated operator email.
+- Verify recurring overdue reminders, below-threshold transition alerts, failed-delivery retry and users without email addresses.
 - Verify plain-language current and historical training labels against the underlying assignment, document-version and acknowledgement records.
 - Issue/return/destroy controlled copies.
 - Search/export audit; attempt DB update/delete of append-only records.

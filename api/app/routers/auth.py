@@ -18,6 +18,8 @@ from ..security import (
     get_current_auth,
     hash_password,
     new_session,
+    session_absolute_minutes,
+    session_idle_minutes,
     utcnow,
     verify_password,
 )
@@ -70,7 +72,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     user.failed_login_count = 0
     user.locked_until = None
     user.last_login_at = now
-    auth_session = new_session(user, request)
+    auth_session = new_session(user, request, db)
     db.add(auth_session)
     record_audit(
         db,
@@ -110,6 +112,11 @@ def me(auth: AuthContext = Depends(get_current_auth), db: Session = Depends(get_
         .mappings()
         .all()
     )
+    absolute_minutes = session_absolute_minutes(db)
+    absolute_expiry = min(
+        as_utc(auth.session.expires_at),
+        as_utc(auth.session.issued_at) + timedelta(minutes=absolute_minutes),
+    )
     return {
         "id": auth.user.id,
         "username": auth.user.username,
@@ -119,7 +126,21 @@ def me(auth: AuthContext = Depends(get_current_auth), db: Session = Depends(get_
         "permissions": sorted(auth.permissions),
         "job_roles": [dict(row) for row in job_roles],
         "must_change_password": auth.user.must_change_password,
-        "session_idle_minutes": settings.session_idle_minutes,
+        "session_idle_minutes": session_idle_minutes(db),
+        "session_absolute_minutes": absolute_minutes,
+        "session_expires_at": absolute_expiry,
+    }
+
+
+@router.get("/session-settings")
+def session_settings(auth: AuthContext = Depends(get_current_auth), db: Session = Depends(get_db)):
+    return {
+        "inactivity_timeout_minutes": session_idle_minutes(db),
+        "absolute_timeout_minutes": session_absolute_minutes(db),
+        "expires_at": min(
+            as_utc(auth.session.expires_at),
+            as_utc(auth.session.issued_at) + timedelta(minutes=session_absolute_minutes(db)),
+        ),
     }
 
 

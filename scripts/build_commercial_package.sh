@@ -92,6 +92,7 @@ NEW SERVER INSTALLATION
 7. Record the generated installation report and one-time administrator credentials.
 8. Sign in, change the initial password, open Source discovery and run the first recursive scan.
 9. Correct the suggested metadata and complete the signed approved-baseline import before configuring role curricula.
+10. Set the approved compliance/session limits in System. If email alerts are required, add operator email addresses and configure/test the approved SMTP account in Notification settings before enabling delivery.
 
 SAFE RETRY
 If an image download or first build fails, correct Docker Desktop DNS/proxy access,

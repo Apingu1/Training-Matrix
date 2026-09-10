@@ -312,6 +312,47 @@ class TrainingAcknowledgement(Base):
     session_id: Mapped[str] = mapped_column(String(36))
 
 
+class AssignmentNotificationState(Base):
+    __tablename__ = "assignment_notification_states"
+
+    assignment_id: Mapped[int] = mapped_column(ForeignKey("training_assignments.id"), primary_key=True)
+    assignment_assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    assignment_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    last_overdue_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class ComplianceNotificationState(Base):
+    __tablename__ = "compliance_notification_states"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    was_below_threshold: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_compliance_percent: Mapped[str] = mapped_column(String(20), default="100.0")
+    last_threshold_percent: Mapped[str] = mapped_column(String(20), default="80.0")
+    last_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class EmailNotificationDelivery(Base):
+    __tablename__ = "email_notification_deliveries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notification_type: Mapped[str] = mapped_column(String(40), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    recipient_email: Mapped[str] = mapped_column(String(254), index=True)
+    subject: Mapped[str] = mapped_column(String(500))
+    body_text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), default="PENDING", index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    dedupe_key: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    payload_json: Mapped[dict | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
     __table_args__ = (

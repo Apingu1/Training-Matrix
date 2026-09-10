@@ -8,6 +8,7 @@ import DocumentControlPage from "./pages/DocumentControlPage";
 import DocumentsPage from "./pages/DocumentsPage";
 import MatrixPage from "./pages/MatrixPage";
 import MyTrainingPage from "./pages/MyTrainingPage";
+import NotificationSettingsPage from "./pages/NotificationSettingsPage";
 import PeoplePage from "./pages/PeoplePage";
 import SecurityRolesPage from "./pages/SecurityRolesPage";
 import SourceDiscoveryPage from "./pages/SourceDiscoveryPage";
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="people" element={<Gate any={["users.manage", "job_roles.manage"]}><PeoplePage /></Gate>} />
         <Route path="security" element={<Gate permission="security_roles.manage"><SecurityRolesPage /></Gate>} />
         <Route path="audit" element={<Gate permission="audit.view"><AuditPage /></Gate>} />
+        <Route path="notifications" element={<Gate permission="notifications.manage"><NotificationSettingsPage /></Gate>} />
         <Route path="system" element={<Gate any={["settings.manage", "backups.manage"]}><SystemPage /></Gate>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

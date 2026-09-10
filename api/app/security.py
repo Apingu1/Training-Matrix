@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import get_db
-from .models import AuthSession, RolePermission, SecurityRole, User
+from .models import AuthSession, RolePermission, SecurityRole, SystemSetting, User
 
 password_hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
 
@@ -30,16 +30,12 @@ def as_utc(value: datetime) -> datetime:
 
 def validate_password_strength(password: str) -> None:
     failures: list[str] = []
-    if len(password) < 12:
-        failures.append("at least 12 characters")
+    if len(password) < 8:
+        failures.append("at least 8 characters")
     if not re.search(r"[A-Z]", password):
         failures.append("an uppercase letter")
-    if not re.search(r"[a-z]", password):
-        failures.append("a lowercase letter")
     if not re.search(r"[0-9]", password):
         failures.append("a number")
-    if not re.search(r"[^A-Za-z0-9]", password):
-        failures.append("a special character")
     if failures:
         raise ValueError("Password must contain " + ", ".join(failures))
 
@@ -56,6 +52,42 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
+def _configured_minutes(
+    db: Session,
+    key: str,
+    *,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    setting = db.get(SystemSetting, key)
+    try:
+        value = int(setting.value) if setting else default
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+def session_idle_minutes(db: Session) -> int:
+    return _configured_minutes(
+        db,
+        "session_idle_minutes",
+        default=settings.session_idle_minutes,
+        minimum=5,
+        maximum=240,
+    )
+
+
+def session_absolute_minutes(db: Session) -> int:
+    return _configured_minutes(
+        db,
+        "session_absolute_minutes",
+        default=settings.jwt_expires_minutes,
+        minimum=15,
+        maximum=1440,
+    )
+
+
 def create_access_token(user: User, session: AuthSession) -> str:
     payload = {
         "sub": str(user.id),
@@ -68,14 +100,14 @@ def create_access_token(user: User, session: AuthSession) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
-def new_session(user: User, request: Request) -> AuthSession:
+def new_session(user: User, request: Request, db: Session) -> AuthSession:
     now = utcnow()
     return AuthSession(
         id=str(uuid.uuid4()),
         user_id=user.id,
         issued_at=now,
         last_activity_at=now,
-        expires_at=now + timedelta(minutes=settings.jwt_expires_minutes),
+        expires_at=now + timedelta(minutes=session_absolute_minutes(db)),
         ip_address=client_ip(request),
         user_agent=request.headers.get("user-agent", "")[:500],
     )
@@ -137,9 +169,15 @@ def get_current_auth(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has been revoked")
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is inactive")
-    if as_utc(auth_session.expires_at) <= now:
+
+    configured_absolute_expiry = as_utc(auth_session.issued_at) + timedelta(minutes=session_absolute_minutes(db))
+    absolute_expiry = min(as_utc(auth_session.expires_at), configured_absolute_expiry)
+    if absolute_expiry <= now:
+        auth_session.revoked_at = now
+        db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has expired")
-    idle_limit = timedelta(minutes=settings.session_idle_minutes)
+
+    idle_limit = timedelta(minutes=session_idle_minutes(db))
     if as_utc(auth_session.last_activity_at) + idle_limit <= now:
         auth_session.revoked_at = now
         db.commit()

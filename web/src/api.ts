@@ -89,8 +89,6 @@ export function trainingStatusLabel(status: string, versionStatus?: string): str
       return "Reading required";
     case "OVERDUE":
       return "Reading overdue";
-    case "REFERENCE":
-      return "Reference only";
     case "NOT_ASSIGNED":
       return "No assignment";
     case "WAIVED":

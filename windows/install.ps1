@@ -5,7 +5,7 @@ Assert-Docker
 
 $sourceRoot = Split-Path $PSScriptRoot -Parent
 $packageVersionFile = Join-Path $sourceRoot "APP_VERSION"
-$packageVersion = if (Test-Path -LiteralPath $packageVersionFile) { (Get-Content -LiteralPath $packageVersionFile -Raw).Trim() } else { "0.2.1" }
+$packageVersion = if (Test-Path -LiteralPath $packageVersionFile) { (Get-Content -LiteralPath $packageVersionFile -Raw).Trim() } else { "0.3.0" }
 if ($packageVersion -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {
     throw "The package APP_VERSION value is invalid."
 }

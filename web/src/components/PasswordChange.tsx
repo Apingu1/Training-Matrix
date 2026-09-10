@@ -42,7 +42,7 @@ export default function PasswordChange() {
         <label>Current temporary password<input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required /></label>
         <label>New password<input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required /></label>
         <label>Confirm new password<input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required /></label>
-        <p className="form-hint">At least 12 characters with upper/lower case, a number and a special character.</p>
+        <p className="form-hint">At least 8 characters, including one capital letter and one number.</p>
         {error && <div className="alert error">{error}</div>}
         <button className="button primary wide" disabled={busy}>{busy ? "Changing…" : "Change password"}</button>
       </form>
