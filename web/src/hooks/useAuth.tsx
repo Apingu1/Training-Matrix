@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, clearToken, getToken, setToken } from "../api";
 import type { Me } from "../types";
+import { useSessionTimeout } from "./useSessionTimeout";
 
 type AuthValue = {
   me: Me | null;
@@ -16,7 +17,6 @@ const AuthContext = createContext<AuthValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
-  const lastActivityPing = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!getToken()) {
@@ -41,25 +41,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("eaststone-auth-expired", expired);
   }, [refresh]);
 
-  useEffect(() => {
-    if (!me) return;
-    const registerHumanActivity = () => {
-      const now = Date.now();
-      if (now - lastActivityPing.current < 120_000) return;
-      lastActivityPing.current = now;
-      void api("/auth/activity", { method: "POST" }).catch(() => undefined);
-    };
-    const events: (keyof WindowEventMap)[] = ["click", "keydown", "touchstart"];
-    events.forEach((event) => window.addEventListener(event, registerHumanActivity, { passive: true }));
-    return () => events.forEach((event) => window.removeEventListener(event, registerHumanActivity));
-  }, [me]);
-
   const login = useCallback(async (username: string, password: string) => {
     const result = await api<{ access_token: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password }),
     });
     setToken(result.access_token);
+    sessionStorage.setItem("eaststone_training_matrix_last_activity", String(Date.now()));
+    sessionStorage.removeItem("eaststone_training_matrix_session_end_reason");
     setMe(await api<Me>("/auth/me"));
   }, []);
 
@@ -68,9 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api("/auth/logout", { method: "POST" });
     } finally {
       clearToken();
+      sessionStorage.removeItem("eaststone_training_matrix_last_activity");
       setMe(null);
     }
   }, []);
+
+  useSessionTimeout(me, logout);
 
   const value = useMemo<AuthValue>(
     () => ({ me, loading, login, logout, refresh, has: (permission) => Boolean(me?.permissions.includes(permission)) }),

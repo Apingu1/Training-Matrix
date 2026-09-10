@@ -14,7 +14,8 @@ Production qualification should pin an approved release commit/image set and rec
    If either selected folder is a UNC share, prepare a dedicated least-privilege domain/service account. It needs read access to approved documents and read/write access to backups. Docker will require this credential to establish SMB mounts.
 4. Confirm HTTPS port `8090` (or choose another) is allowed only from the authorised network.
 5. Decide whether to use Eaststone PKI. The installer creates a 825-day self-signed certificate for initial deployment; a CA-issued server certificate is preferable.
-6. Approve the configuration and validation protocol before regulated data entry.
+6. If email alerts will be used, confirm the server can reach an approved SMTP relay and obtain a dedicated mailbox or relay account, sender address, port and security mode.
+7. Approve the configuration and validation protocol before regulated data entry.
 
 ## Windows installation
 
@@ -66,6 +67,21 @@ Folder configuration makes documents available read-only; it intentionally does 
 6. Review the exact list, enter the controlled reason and your password, then enter the displayed confirmation phrase.
 
 The API re-checks that every selected path and hash still matches the latest inventory, then hashes each file again before registration. Each released baseline version receives an electronic signature and individual audit event; the batch receives a final count and SHA-256 digest. Subsequent scheduled scans identify additions, external changes and missing files. The scan interval is configurable in **System** (5–1440 minutes; default 60).
+
+## Session and email configuration
+
+In **System**, set the active-compliance threshold and the idle and absolute session limits to approved values. Passwords require at least eight characters, one uppercase letter and one number. The absolute limit ends a session even if the user remains active; the idle limit ends it after inactivity.
+
+Email delivery is optional and is configured after installation:
+
+1. Add and verify operator email addresses in **People & roles**.
+2. Open **Notification settings** with an administrator account.
+3. Enter the approved SMTP host, port, security mode, username/password if required, and sender identity.
+4. Save the configuration with a controlled reason while notifications remain off.
+5. Send a test message to a monitored address and retain the result as validation evidence.
+6. Choose the overdue reminder frequency, enable notifications and run a manual notification cycle.
+
+The SMTP password is encrypted using the installation `JWT_SECRET` and is never returned through the API or written into audit before/after data. Keep that secret protected and backed up with the installation configuration. If the installation secret changes or the database is restored to a deployment with a different secret, enter the SMTP password again. Use a dedicated least-privilege SMTP account or an approved internal relay; do not use a personal mailbox password.
 
 ## Existing Eaststone certificate
 

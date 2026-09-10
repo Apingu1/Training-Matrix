@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
 
     app_name: str = "Eaststone Training Matrix"
-    app_version: str = "0.2.1"
+    app_version: str = "0.3.0"
     app_env: str = "development"
     timezone: str = Field("Europe/London", alias="TZ")
 
@@ -60,8 +60,12 @@ class Settings(BaseSettings):
     @field_validator("initial_admin_password")
     @classmethod
     def validate_admin_password(cls, value: str) -> str:
-        if len(value) < 12:
-            raise ValueError("INITIAL_ADMIN_PASSWORD must contain at least 12 characters")
+        if len(value) < 8:
+            raise ValueError("INITIAL_ADMIN_PASSWORD must contain at least 8 characters")
+        if not any(character.isupper() for character in value):
+            raise ValueError("INITIAL_ADMIN_PASSWORD must contain an uppercase letter")
+        if not any(character.isdigit() for character in value):
+            raise ValueError("INITIAL_ADMIN_PASSWORD must contain a number")
         return value
 
 

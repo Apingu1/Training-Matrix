@@ -223,6 +223,24 @@ class SettingsPatch(BaseModel):
     reason: str = Field(min_length=3, max_length=2000)
 
 
+class NotificationSettingsUpdate(BaseModel):
+    enabled: bool
+    smtp_host: str = Field(max_length=255)
+    smtp_port: int = Field(ge=1, le=65535)
+    smtp_security: Literal["STARTTLS", "SSL", "NONE"]
+    smtp_username: str = Field(max_length=255)
+    smtp_password: str | None = Field(default=None, max_length=500)
+    clear_smtp_password: bool = False
+    sender_name: str = Field(min_length=1, max_length=160)
+    sender_email: str = Field(max_length=254)
+    overdue_frequency_days: int = Field(ge=1, le=90)
+    reason: str = Field(min_length=3, max_length=2000)
+
+
+class NotificationTestRequest(BaseModel):
+    recipient_email: str = Field(min_length=3, max_length=254)
+
+
 class BackupCreateRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=2000)
 

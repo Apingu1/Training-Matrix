@@ -14,9 +14,10 @@ from .audit import record_audit
 from .config import settings
 from .database import Base, runtime
 from .models import SourceScanRun, SystemSetting
-from .routers import admin, audit, auth, documents, system, training
+from .routers import admin, audit, auth, compliance, configuration, documents, notifications, system, training
 from .routers.documents import activate_due_versions
 from .seed import seed_database
+from .services.notifications import run_notification_cycle
 from .services.source_discovery import run_source_scan
 from .services.training import reconcile_active_role_assignments, reconcile_assignment_sources
 
@@ -100,6 +101,22 @@ async def source_scan_worker() -> None:
         await asyncio.sleep(60)
 
 
+def process_email_notifications() -> None:
+    with runtime.session() as db:
+        run_notification_cycle(db)
+
+
+async def email_notification_worker() -> None:
+    await asyncio.sleep(60)
+    while True:
+        try:
+            await asyncio.to_thread(process_email_notifications)
+        except Exception:
+            # Configuration and delivery failures remain visible in Notification settings.
+            pass
+        await asyncio.sleep(60)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     if settings.app_env.lower() != "production":
@@ -108,13 +125,17 @@ async def lifespan(_: FastAPI):
         seed_database(db)
     worker = asyncio.create_task(document_activation_worker())
     scan_worker = asyncio.create_task(source_scan_worker())
+    notification_worker = asyncio.create_task(email_notification_worker())
     yield
     worker.cancel()
     scan_worker.cancel()
+    notification_worker.cancel()
     with suppress(asyncio.CancelledError):
         await worker
     with suppress(asyncio.CancelledError):
         await scan_worker
+    with suppress(asyncio.CancelledError):
+        await notification_worker
 
 
 app = FastAPI(
@@ -190,6 +211,9 @@ def health():
 app.include_router(auth.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(training.router, prefix="/api")
+app.include_router(compliance.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
+app.include_router(configuration.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")

@@ -32,6 +32,50 @@ def test_complete_document_release_and_training_flow(client, helpers):
     admin_token = login(client, "admin", ADMIN_PASSWORD)
     admin_headers = headers(admin_token)
 
+    configured = assert_ok(
+        client.patch(
+            "/api/admin/system/extended-settings",
+            headers=admin_headers,
+            json={
+                "values": {
+                    "active_compliance_threshold_percent": "85",
+                    "session_idle_minutes": "20",
+                    "session_absolute_minutes": "240",
+                },
+                "reason": "Approve compliance and session operating limits",
+            },
+        )
+    )
+    assert configured["ok"] is True
+    system_info = assert_ok(client.get("/api/admin/system/info", headers=admin_headers))
+    assert system_info["settings"]["active_compliance_threshold_percent"] == "85"
+    assert system_info["settings"]["session_idle_minutes"] == "20"
+    assert system_info["settings"]["session_absolute_minutes"] == "240"
+
+    notification_settings = assert_ok(
+        client.patch(
+            "/api/admin/notifications/settings",
+            headers=admin_headers,
+            json={
+                "enabled": False,
+                "smtp_host": "smtp.example.test",
+                "smtp_port": 587,
+                "smtp_security": "STARTTLS",
+                "smtp_username": "training-notifications@example.test",
+                "smtp_password": "Mail-Secret1",
+                "clear_smtp_password": False,
+                "sender_name": "Eaststone Training Matrix",
+                "sender_email": "training-notifications@example.test",
+                "overdue_frequency_days": 3,
+                "reason": "Validate protected notification configuration",
+            },
+        )
+    )
+    assert notification_settings["smtp_password_configured"] is True
+    assert "smtp_password" not in notification_settings
+    masked_system_info = assert_ok(client.get("/api/admin/system/info", headers=admin_headers))
+    assert "notification_smtp_password" not in masked_system_info["settings"]
+
     security_roles = assert_ok(client.get("/api/admin/security-roles", headers=admin_headers))
     qa_role_id = next(role["id"] for role in security_roles if role["code"] == "QA_APPROVER")
     operator_role_id = next(role["id"] for role in security_roles if role["code"] == "OPERATOR")
@@ -195,6 +239,21 @@ def test_complete_document_release_and_training_flow(client, helpers):
     assert release["version"]["status"] == "RELEASED"
     assert release["assignments_created"] == 1
 
+    curriculum = assert_ok(client.get("/api/training/curriculum-grid", headers=admin_headers))
+    curriculum_document = next(item for item in curriculum["documents"] if item["id"] == family["id"])
+    assert curriculum_document["required_role_ids"] == [job_role["id"]]
+    overview = assert_ok(client.get("/api/training/compliance-overview", headers=admin_headers))
+    assert overview["threshold_percent"] == 85
+    assert overview["operator_count"] == 1
+    assert overview["below_threshold_count"] == 1
+    assert overview["average_compliance_percent"] == 0
+    live_matrix = assert_ok(
+        client.get(f"/api/training/live-matrix?job_role_id={job_role['id']}", headers=admin_headers)
+    )
+    assert live_matrix["threshold_percent"] == 85
+    assert live_matrix["users"][0]["compliance_percent"] == 0
+    assert live_matrix["rows"][0]["cells"][0]["status"] == "ASSIGNED"
+
     controlled_copy = assert_ok(
         client.post(
             f"/api/document-versions/{version['id']}/controlled-copies",
@@ -282,6 +341,13 @@ def test_complete_document_release_and_training_flow(client, helpers):
     )
     assert completed["status"] == "COMPLETED"
     assert completed["acknowledgement"]["source_sha256"] == version["source_sha256"]
+
+    user_compliance = assert_ok(client.get(f"/api/training/users/{operator['id']}/compliance", headers=admin_headers))
+    assert user_compliance["compliance_percent"] == 100
+    assert user_compliance["below_threshold"] is False
+    completed_overview = assert_ok(client.get("/api/training/compliance-overview", headers=admin_headers))
+    assert completed_overview["below_threshold_count"] == 0
+    assert completed_overview["average_compliance_percent"] == 100
 
     matrix = assert_ok(client.get(f"/api/training/matrix/{job_role['id']}", headers=qa_headers))
     operator_column = next(index for index, user in enumerate(matrix["users"]) if user["id"] == operator["id"])

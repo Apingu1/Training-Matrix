@@ -15,17 +15,31 @@ The first release is intentionally a clean build. It does **not** import the cur
 - SHA-256 change detection: a controlled source changed outside the workflow is blocked.
 - Draft, review, independent approval, scheduled/effective release, supersession and obsolescence states.
 - Electronic approval/release signatures with password re-authentication and exact file hash.
-- Role-based curricula, effective-dated operator roles, automatic assignments and retraining on revision.
+- Global SOP-by-role curriculum grid, effective-dated operator roles, automatic assignments and retraining on revision.
+- Configurable compliance threshold, dashboard indicators, operator scores and a below-threshold alerts register.
 - Operator read-and-understood acknowledgement after verified document viewing and password re-authentication.
-- Live role matrix and user history with plain-language statuses such as Reading required, Read and acknowledged, Reading overdue and Closed before completion.
+- Live role matrix with role/operator and multi-status filters, plus user history with plain-language training states.
+- Email notifications for consolidated new assignments, recurring overdue training and newly below-threshold operators.
 - Controlled-copy issue, return and destruction register.
-- Dynamic security roles and permissions, idle sessions, lockout, forced first-login password change and server-side enforcement.
+- Dynamic security roles and permissions, configurable idle/absolute sessions, lockout, forced first-login password change and server-side enforcement.
 - Append-only audit, acknowledgement and document-signature records in PostgreSQL.
 - Searchable audit trail with CSV/PDF export.
 - Automatic/manual PostgreSQL backups, hash manifests, verification and staged restore with a pre-restore safety backup.
 - Docker-based server deployment, Windows administration scripts and CI checks.
 - Resumable Windows installation with pasted UNC/mapped-drive support, exact SMB volume-subpath isolation for remote folders, Docker read/write preflight, visible health progress and Docker-compatible TLS key ACL repair.
 - Server-prepared client deployment with the approved certificate, server name and HTTPS port; client workstations require no manual connection prompts.
+
+## Email notification configuration
+
+The application stores SMTP configuration in PostgreSQL; the SMTP password is encrypted using the installation secret and is excluded from API responses and audit before/after values. Database restore to a different installation secret requires the SMTP password to be entered again.
+
+1. Confirm the server can reach Eaststone's approved SMTP host and port.
+2. Ensure each intended recipient has a valid email address in **People & roles**.
+3. Open **Notification settings**, enter the SMTP server, security mode, account details and sender identity, then save with a controlled reason.
+4. Send a test email and confirm receipt before switching notifications on.
+5. Set the recurring overdue-reminder interval and enable notifications.
+
+New assignments created after enablement are consolidated into one email per operator. Current overdue work and newly below-threshold operators are evaluated when the notification cycle runs. Delivery failures remain in the register and retry with bounded backoff; saving corrected SMTP details makes failed deliveries immediately retryable.
 
 ## Quick start for development
 

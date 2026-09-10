@@ -32,6 +32,13 @@ The system shall manage Eaststone's controlled-document master list and role-der
 | URS-022 | Bulk-register only the reviewed approved current baseline | Highest-version selection helper; permission, password, confirmation, inventory and re-hash checks |
 | URS-023 | Record complete baseline provenance | Per-version electronic signature/audit plus batch count and digest |
 | URS-024 | Detect later additions and external source changes | Configurable automatic scan and manual rescan; changed/missing classifications |
+| URS-025 | Maintain curricula efficiently at expected scale | SOP-only document rows × active-role columns with checkboxes, one reason and one save action |
+| URS-026 | Measure active training compliance against an administrator-set threshold | Configurable percentage, operator scores, average score and below-threshold count/alert tab |
+| URS-027 | Filter the live matrix by role, operator and multiple training statuses | Role/operator selectors and multi-select Reading required, Read and acknowledged, Reading overdue and No assignment filters |
+| URS-028 | End inactive and overlong authenticated sessions | Configurable idle and absolute limits enforced by browser activity tracking and the server session record |
+| URS-029 | Show SOP/form relationships without assigning forms as reading requirements | Green SOP parents, blue indented forms and linked parent/child details |
+| URS-030 | Notify users of training obligations by email | Configurable SMTP, consolidated new-assignment messages, recurring overdue reminders and below-threshold transition alerts |
+| URS-031 | Retain notification accountability without exposing SMTP credentials | Permissioned settings, encrypted password, masked API output, delivery register, retries and audit events |
 
 ## Permission roles supplied
 
@@ -50,6 +57,6 @@ Administrators may create additional roles and permission bundles. Built-in role
 - Authoring/editing PDF or DOCX content in the web application.
 - Replacing the shared-folder backup or access-control process.
 - Qualification sign-off, practical observation or exam scoring beyond read-and-understand acknowledgement.
-- External identity provider integration, email reminders and native mobile apps.
+- External identity provider integration and native mobile apps.
 
 These are potential controlled enhancements and require separate requirements, risk assessment and validation.
